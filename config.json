@@ -1,0 +1,14 @@
+{
+  "FOLDER_ID": "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el",
+  "UPLOAD_LIMIT_PER_RUN": 5,
+  "SCHEDULE_TIMES": [7, 10, 12, 16, 21],
+  "VIDEO_TITLES": [
+    "تلاوة خاشعة تلامس القلوب",
+    "صوت يريح القلب والعقل",
+    "آيات تبعث الطمأنينة في النفس",
+    "تلاوة عذبة تدمع لها العيون",
+    "استمع لتلاوة تهز المشاعر"
+  ],
+  "LOG_FILE": "upload_log.txt",
+  "TEMP_DOWNLOAD_DIR": "temp_videos"
+}
