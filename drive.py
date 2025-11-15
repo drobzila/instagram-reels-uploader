@@ -1,29 +1,34 @@
-name: جلب عناوين فيديوهات Google Drive
+import os
+import json
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
-on:
-  workflow_dispatch:  # لتشغيله يدويًا من GitHub
+# تحميل ملف الخدمة من المتغير البيئي
+service_account_json = os.environ["SERVICE_ACCOUNT_JSON_B64"]
+service_account_info = json.loads(service_account_json)
 
-jobs:
-  fetch-titles:
-    runs-on: ubuntu-latest
+# إنشاء credentials
+creds = Credentials.from_service_account_info(
+    service_account_info,
+    scopes=["https://www.googleapis.com/auth/drive.readonly"]
+)
 
-    env:
-      SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}  # ضع Base64 هنا
+# إنشاء خدمة Google Drive API
+service = build("drive", "v3", credentials=creds)
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+# جلب ملفات الفيديو فقط
+results = service.files().list(
+    q="mimeType contains 'video/'",
+    fields="files(id, name, mimeType, webViewLink)"
+).execute()
 
-      - name: تثبيت Python و Pip
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
+files = results.get("files", [])
 
-      - name: تثبيت المتطلبات
-        run: |
-          python -m pip install --upgrade pip
-          pip install --no-cache-dir google-api-python-client google-auth
+print("\n=== قائمة عناوين الفيديوهات في Google Drive ===\n")
 
-      - name: تشغيل السكربت
-        run: |
-          python main.py
+if not files:
+    print("لا توجد فيديوهات.")
+else:
+    for f in files:
+        print(f"- {f['name']}")
+        print(f"  الرابط: {f['webViewLink']}\n")
