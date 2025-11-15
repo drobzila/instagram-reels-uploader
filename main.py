@@ -53,7 +53,7 @@ def upload_video_to_instagram(video_path, caption):
     files = {'file': open(video_path, 'rb')}
     payload = {
         "caption": caption,
-        "media_type": "VIDEO",
+        "media_type": "REELS",
         "access_token": ACCESS_TOKEN
     }
     r = requests.post(url, files=files, data=payload)
