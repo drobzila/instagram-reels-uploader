@@ -42,54 +42,48 @@ def get_drive_service():
 
 # ⬇️ تحميل الفيديو من Google Drive
 def download_video_from_drive(file_id, file_name, drive_service):
+    # تأكد أن مجلد temp_videos موجود
+    os.makedirs("temp_videos", exist_ok=True)
+    temp_path = os.path.join("temp_videos", file_name)
+
     request = drive_service.files().get_media(fileId=file_id)
-    fh = io.FileIO(file_name, 'wb')
+    fh = io.FileIO(temp_path, 'wb')
     downloader = MediaIoBaseDownload(fh, request)
     done = False
     while not done:
         _, done = downloader.next_chunk()
     print(f"⬇️ تم تحميل {file_name}")
-    return file_name
+    return temp_path
 
 # 🧠 إنشاء عنوان فريد
 def make_unique_title():
     return random.choice(video_titles)
 
-# 🎥 رفع الفيديو إلى Instagram Reels من الملف المحلي
+# 🎥 رفع الفيديو إلى Instagram Reels
 def upload_video_to_instagram(video_path, caption):
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
-    with open(video_path, 'rb') as f:
-        files = {'video_file': f}  # المفتاح video_file وليس file
-        payload = {
-            "caption": caption,
-            "media_type": "REELS",  # يجب REELS
-            "access_token": ACCESS_TOKEN
-        }
-        r = requests.post(url, files=files, data=payload)
-        res = r.json()
-    
+    files = {'file': open(video_path, 'rb')}
+    payload = {
+        "caption": caption,
+        "media_type": "REELS",  # لا تستخدم VIDEO، يجب REELS
+        "access_token": ACCESS_TOKEN
+    }
+    r = requests.post(url, files=files, data=payload)
+    res = r.json()
     container_id = res.get("id")
     if not container_id:
         print("❌ خطأ في إنشاء container:", res)
+        files['file'].close()
         return
-    
-    # نشر الفيديو بعد التأكد من أن container جاهز
+
+    # نشر الفيديو
     publish_url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media_publish"
-    while True:
-        publish_res = requests.post(publish_url, data={
-            "creation_id": container_id,
-            "access_token": ACCESS_TOKEN
-        }).json()
-        if "id" in publish_res:
-            print("✅ نشر الفيديو:", publish_res)
-            break
-        elif publish_res.get("error", {}).get("code") == 9007:
-            # الوسائط غير جاهزة بعد، انتظر 5 ثواني ثم حاول مجددًا
-            print("⏳ الوسائط غير جاهزة، إعادة المحاولة بعد 5 ثواني...")
-            import time; time.sleep(5)
-        else:
-            print("❌ خطأ أثناء النشر:", publish_res)
-            break
+    publish_res = requests.post(publish_url, data={
+        "creation_id": container_id,
+        "access_token": ACCESS_TOKEN
+    }).json()
+    print("✅ نشر الفيديو:", publish_res)
+    files['file'].close()
 
 # 🚀 الكود الرئيسي
 def main():
@@ -114,15 +108,16 @@ def main():
         original_title = file["name"]
         caption = make_unique_title()
 
-        # تحميل الفيديو مؤقتًا
         path = download_video_from_drive(file["id"], original_title, drive_service)
-
-        # رفع الفيديو
         upload_video_to_instagram(path, caption)
 
-        # حذف الملف بعد الرفع
+        # حذف الفيديو بعد الرفع
         os.remove(path)
         print(f"🧹 حذف {original_title} بعد الرفع")
+
+    # حذف مجلد temp_videos إذا أصبح فارغًا
+    if os.path.exists("temp_videos") and not os.listdir("temp_videos"):
+        os.rmdir("temp_videos")
 
     print("✅ تم رفع الفيديوهات على Instagram Reels بنجاح.")
 
