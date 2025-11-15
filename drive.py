@@ -1,48 +1,46 @@
 import os
 import json
 import base64
-from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from google.oauth2.service_account import Credentials
 
-# --- قراءة الـ Base64 ---
-b64 = os.environ.get("SERVICE_ACCOUNT_JSON_B64")
+FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"  # ضع مجلدك هنا
 
-if not b64:
-    raise Exception("❌ المتغير SERVICE_ACCOUNT_JSON_B64 غير موجود أو فارغ")
+def get_drive_service():
+    service_account_b64 = os.getenv("SERVICE_ACCOUNT_JSON_B64")
+    service_account_json = base64.b64decode(service_account_b64)
+    info = json.loads(service_account_json)
 
-# --- فك Base64 ---
-try:
-    sa_json = base64.b64decode(b64).decode("utf-8")
-except Exception as e:
-    raise Exception("❌ فشل فك التشفير Base64:", e)
+    creds = Credentials.from_service_account_info(
+        info,
+        scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    )
+    return build("drive", "v3", credentials=creds)
 
-# --- تحويله JSON ---
-try:
-    info = json.loads(sa_json)
-except Exception as e:
-    raise Exception("❌ الخدمة ليست JSON صحيح:", e)
+def main():
+    drive = get_drive_service()
 
-# --- إعداد الـ API ---
-creds = Credentials.from_service_account_info(
-    info,
-    scopes=["https://www.googleapis.com/auth/drive.readonly"]
-)
+    results = drive.files().list(
+        q=f"'{FOLDER_ID}' in parents and mimeType contains 'video/'",
+        fields="files(id, name)"
+    ).execute()
 
-service = build("drive", "v3", credentials=creds)
+    files = results.get("files", [])
+    print(f"عدد الملفات: {len(files)}")
 
-# --- جلب الفيديوهات ---
-query = "mimeType contains 'video/'"
+    links = []
+    for f in files:
+        link = f"https://drive.google.com/uc?id={f['id']}"
+        print(link, "#", f["name"])
+        links.append({
+            "name": f["name"],
+            "url": link
+        })
 
-results = service.files().list(
-    q=query,
-    fields="files(id, name)",
-    pageSize=1000
-).execute()
+    with open("videos.json", "w", encoding="utf8") as out:
+        json.dump(links, out, ensure_ascii=False, indent=2)
 
-files = results.get("files", [])
+    print("تم إنشاء videos.json")
 
-print("عدد الملفات:", len(files))
-print("\n--- روابط الفيديوهات ---")
-
-for f in files:
-    print(f"https://drive.google.com/uc?id={f['id']}  # {f['name']}")
+if __name__ == "__main__":
+    main()
