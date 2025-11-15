@@ -1,0 +1,37 @@
+name: Upload Quran Videos to Instagram
+
+on:
+  schedule:
+    # كل يوم الساعة 12:00 بتوقيت UTC
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib python-dotenv requests
+
+    - name: Copy Service Account JSON
+      run: echo "${{ secrets.SERVICE_ACCOUNT_JSON }}" > service_account.json
+
+    - name: Set environment variables
+      run: |
+        echo "ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }}" >> $GITHUB_ENV
+        echo "IG_USER_ID=${{ secrets.IG_USER_ID }}" >> $GITHUB_ENV
+        echo "GOOGLE_APPLICATION_CREDENTIALS=service_account.json" >> $GITHUB_ENV
+
+    - name: Run the script
+      run: python upload_to_ig.py
