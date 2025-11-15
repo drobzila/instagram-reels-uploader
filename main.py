@@ -1,13 +1,9 @@
 import os
-import io
 import json
 import base64
 import random
-import datetime
-import time
 import requests
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
@@ -22,7 +18,6 @@ video_titles = [
     "تلاوة خاشعة تلامس القلوب", 
     "صوت يريح القلب والعقل", 
     "آيات تبعث الطمأنينة في النفس",
-    # … أضف المزيد حسب الحاجة
 ]
 
 # 🧭 مجلد الفيديوهات في Google Drive
@@ -41,64 +36,39 @@ def get_drive_service():
     )
     return build('drive', 'v3', credentials=credentials)
 
-# ⬇️ تحميل الفيديو من Google Drive
-def download_video_from_drive(file_id, file_name, drive_service):
-    request = drive_service.files().get_media(fileId=file_id)
-    fh = io.FileIO(file_name, 'wb')
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        _, done = downloader.next_chunk()
-    print(f"⬇️ تم تحميل {file_name}")
-    return file_name
-
 # 🧠 إنشاء عنوان فريد
 def make_unique_title():
     return random.choice(video_titles)
 
-# 🎥 رفع الفيديو إلى Instagram Reels
-def upload_video_to_instagram(video_path, caption):
-    print(f"⬇️ رفع {video_path} باستخدام الرابط المباشر...")
+# 🎥 رفع الفيديو إلى Instagram Reels باستخدام رابط مباشر
+def upload_video_to_instagram(video_url, caption):
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
-    files = {'file': open(video_path, 'rb')}
     payload = {
+        "video_url": video_url,
         "caption": caption,
         "media_type": "REELS",
         "access_token": ACCESS_TOKEN
     }
-    r = requests.post(url, files=files, data=payload)
+    r = requests.post(url, data=payload)
     res = r.json()
     container_id = res.get("id")
     if not container_id:
         print("❌ خطأ في إنشاء container:", res)
-        files['file'].close()
         return
 
-    # ⏳ انتظر حتى يصبح الفيديو جاهز للنشر
-    publish_res = {}
-    for attempt in range(12):  # تجربة 12 مرة
-        time.sleep(5)  # الانتظار 5 ثواني بين كل محاولة
-        publish_url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media_publish"
-        publish_res = requests.post(publish_url, data={
-            "creation_id": container_id,
-            "access_token": ACCESS_TOKEN
-        }).json()
-        if "id" in publish_res:
-            print("✅ تم نشر الفيديو بنجاح!")
-            break
-        else:
-            print("⏳ الفيديو لم يصبح جاهزًا للنشر بعد، إعادة المحاولة...")
-
-    files['file'].close()
-    print("نشر الفيديو النهائي:", publish_res)
+    # نشر الفيديو
+    publish_url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media_publish"
+    publish_res = requests.post(publish_url, data={
+        "creation_id": container_id,
+        "access_token": ACCESS_TOKEN
+    }).json()
+    print("✅ نشر الفيديو:", publish_res)
 
 # 🚀 الكود الرئيسي
 def main():
-    tz = datetime.timezone(datetime.timedelta(hours=1))  # الجزائر +1
-    now = datetime.datetime.now(tz)
-
     drive_service = get_drive_service()
 
+    # جلب الفيديوهات من مجلد Drive
     files = drive_service.files().list(
         q=f"'{FOLDER_ID}' in parents and mimeType contains 'video/'",
         fields="files(id, name)"
@@ -109,17 +79,15 @@ def main():
         return
 
     random.shuffle(files)
-    selected_files = files[:5]
+    selected_files = files[:5]  # اختيار 5 فيديوهات عشوائياً
 
     for file in selected_files:
-        original_title = file["name"]
+        video_id = file["id"]
         caption = make_unique_title()
-
-        path = download_video_from_drive(file["id"], original_title, drive_service)
-        upload_video_to_instagram(path, caption)
-
-        os.remove(path)
-        print(f"🧹 حذف {original_title} بعد الرفع")
+        # رابط مباشر من Google Drive
+        video_url = f"https://drive.google.com/uc?export=download&id={video_id}"
+        print(f"⬇️ رفع {file['name']} باستخدام الرابط المباشر: {video_url}")
+        upload_video_to_instagram(video_url, caption)
 
     print("✅ تم رفع الفيديوهات على Instagram Reels بنجاح.")
 
