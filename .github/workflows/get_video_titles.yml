@@ -1,26 +1,20 @@
-name: جلب عناوين فيديوهات Google Drive
+name: جلب روابط فيديوهات Drive
 
 on:
   workflow_dispatch:
 
 jobs:
-  run:
+  list_drive_videos:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-
     - name: Install dependencies
-      run: |
-        pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+      run: pip install google-api-python-client google-auth
 
-    - name: Run drive.py
+    - name: Run script
       env:
         SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
       run: python drive.py
