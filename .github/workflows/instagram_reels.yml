@@ -3,7 +3,7 @@ name: Upload Reels from Drive
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"  # كل 6 ساعات
+    - cron: '0 6 * * *' # 06:00 UTC = 07:00 صباحًا بتوقيت الجزائر
 
 jobs:
   upload:
