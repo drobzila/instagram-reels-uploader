@@ -34,4 +34,4 @@ jobs:
         echo "GOOGLE_APPLICATION_CREDENTIALS=service_account.json" >> $GITHUB_ENV
 
     - name: Run the script
-      run: python upload_to_ig.py
+      run: maon.py
