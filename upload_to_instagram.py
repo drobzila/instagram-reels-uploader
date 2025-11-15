@@ -1,87 +1,59 @@
-import requests
 import time
+import requests
 from tqdm import tqdm
-import os
 
-ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")  # تأكد من تعريفه في البيئة
-IG_USER_ID = os.getenv("IG_USER_ID")      # ID حساب Instagram Business
+ACCESS_TOKEN = "YOUR_ACCESS_TOKEN"
+IG_USER_ID = "YOUR_IG_USER_ID"
 
-MAX_ATTEMPTS = 15       # أقصى عدد محاولات للتحقق من جاهزية الفيديو
-WAIT_SECONDS = 60       # الانتظار بين كل محاولة (بالثواني)
+videos = [
+    "https://drive.google.com/uc?id=1VgMxWyIrZ9--tiTmZlfQjT0rYbxMsUSB",
+    "https://drive.google.com/uc?id=1NTclI5dtazAPB2e830sVR2eN8YhGeHJz",
+    "https://drive.google.com/uc?id=1aJk-gxzIJOfC49XtGkfbRV6fPpZ-QPJt",
+    "https://drive.google.com/uc?id=19mzAiTLOtYzrZ-CxftAFCp4PrjOfl-7X",
+    "https://drive.google.com/uc?id=1F3Af__lPU3eqszwf_Xs_NePxBQke1Y6L"
+]
 
-def create_container(video_url, caption):
-    """إنشاء Media Container على Instagram"""
+def create_container(video_url):
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
     payload = {
-        "media_type": "REELS",       # تحديد نوع الوسائط
-        "video_url": video_url,      # رابط الفيديو المباشر
-        "caption": caption,
+        "media_type": "REELS",  # مهم جدًا
+        "video_url": video_url,
         "access_token": ACCESS_TOKEN
     }
-    r = requests.post(url, data=payload)
-    data = r.json()
-    if "id" in data:
-        return data["id"]
-    print(f"❌ خطأ في إنشاء container: {data}")
-    return None
+    r = requests.post(url, data=payload).json()
+    return r.get("id"), r.get("error")
 
-def check_media_status(media_id):
-    """التحقق من حالة الوسائط"""
-    url = f"https://graph.facebook.com/v17.0/{media_id}?fields=status_code&access_token={ACCESS_TOKEN}"
-    r = requests.get(url)
-    data = r.json()
-    return data.get("status_code", "ERROR")
+def check_status(container_id):
+    url = f"https://graph.facebook.com/v17.0/{container_id}?fields=status_code&access_token={ACCESS_TOKEN}"
+    r = requests.get(url).json()
+    return r.get("status_code")
 
-def publish_media(media_id):
-    """نشر الفيديو بعد أن يصبح جاهز"""
+def publish_media(container_id):
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media_publish"
-    payload = {"creation_id": media_id, "access_token": ACCESS_TOKEN}
-    r = requests.post(url, data=payload)
-    data = r.json()
-    if "id" in data:
-        print(f"✅ الفيديو نشر بنجاح: {data['id']}")
-    else:
-        print(f"❌ فشل النشر: {data}")
+    payload = {"creation_id": container_id, "access_token": ACCESS_TOKEN}
+    r = requests.post(url, data=payload).json()
+    return r
 
-def wait_until_ready(media_id):
-    """انتظار حتى يصبح الفيديو جاهزًا"""
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        status = check_media_status(media_id)
+for video in tqdm(videos, desc="رفع الفيديوهات"):
+    print(f"رفع: {video}")
+    container_id, error = create_container(video)
+    if error:
+        print("❌ خطأ في إنشاء container:", error)
+        continue
+
+    # الانتظار حتى يصبح الفيديو جاهزًا
+    max_attempts = 20
+    attempt_delay = 30  # ثانية
+    for attempt in range(max_attempts):
+        status = check_status(container_id)
+        print(f"⏳ حالة الفيديو: {status}, محاولة {attempt+1}/{max_attempts}")
         if status == "READY":
-            return True
-        print(f"⏳ الفيديو ليس جاهزاً بعد (حالة: {status}), محاولة {attempt}/{MAX_ATTEMPTS}...")
-        time.sleep(WAIT_SECONDS)
-    print("❌ الفيديو لم يصبح جاهزاً بعد الحد الأقصى من المحاولات.")
-    return False
+            break
+        time.sleep(attempt_delay)
+    else:
+        print("❌ الفيديو لم يصبح جاهزاً بعد الحد الأقصى من المحاولات.")
+        continue
 
-def main():
-    if not os.path.exists("videos.txt"):
-        print("❌ ملف videos.txt غير موجود!")
-        return
-
-    # قراءة الفيديوهات من ملف النصوص
-    videos = []
-    with open("videos.txt", "r", encoding="utf8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                # تقسيم الرابط والاسم
-                if "# " in line:
-                    url, title = line.split("# ", 1)
-                    url, title = url.strip(), title.strip()
-                else:
-                    url, title = line, "بدون عنوان"
-                videos.append({"url": url, "title": title})
-
-    print(f"🔹 سيتم رفع {len(videos)} فيديو...")
-
-    # رفع الفيديوهات مع شريط تقدم
-    for video in tqdm(videos, desc="رفع الفيديوهات", unit="فيديو"):
-        media_id = create_container(video["url"], video["title"])
-        if not media_id:
-            continue
-        if wait_until_ready(media_id):
-            publish_media(media_id)
-
-if __name__ == "__main__":
-    main()
+    # نشر الفيديو
+    result = publish_media(container_id)
+    print("✅ نشر الفيديو:", result)
