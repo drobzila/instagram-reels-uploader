@@ -1,12 +1,10 @@
 import os
-import io
 import json
-import base64
 import random
 import datetime
+import base64
 import requests
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
@@ -40,40 +38,43 @@ def get_drive_service():
     )
     return build('drive', 'v3', credentials=credentials)
 
-# ⬇️ تحميل الفيديو من Google Drive
-def download_video_from_drive(file_id, file_name, drive_service):
-    # تأكد أن مجلد temp_videos موجود
-    os.makedirs("temp_videos", exist_ok=True)
-    temp_path = os.path.join("temp_videos", file_name)
+# 🔗 الحصول على رابط عام للفيديو
+def get_public_video_url(file_id, drive_service):
+    # جعل الملف عام إذا لم يكن كذلك
+    try:
+        drive_service.permissions().create(
+            fileId=file_id,
+            body={"type": "anyone", "role": "reader"},
+            fields="id"
+        ).execute()
+    except Exception as e:
+        print("⚠️ فشل في جعل الملف عام:", e)
 
-    request = drive_service.files().get_media(fileId=file_id)
-    fh = io.FileIO(temp_path, 'wb')
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        _, done = downloader.next_chunk()
-    print(f"⬇️ تم تحميل {file_name}")
-    return temp_path
+    # رابط مباشر للتحميل من Google Drive
+    return f"https://drive.google.com/uc?export=download&id={file_id}"
 
 # 🧠 إنشاء عنوان فريد
-def make_unique_title():
-    return random.choice(video_titles)
+def make_unique_title(used_titles):
+    title = random.choice(video_titles)
+    while title in used_titles:
+        title = random.choice(video_titles)
+    used_titles.add(title)
+    return title
 
 # 🎥 رفع الفيديو إلى Instagram Reels
-def upload_video_to_instagram(video_path, caption):
+def upload_video_to_instagram(video_url, caption):
+    # إنشاء container
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
-    files = {'file': open(video_path, 'rb')}
     payload = {
+        "video_url": video_url,
         "caption": caption,
-        "media_type": "REELS",  # لا تستخدم VIDEO، يجب REELS
+        "media_type": "VIDEO",
         "access_token": ACCESS_TOKEN
     }
-    r = requests.post(url, files=files, data=payload)
-    res = r.json()
+    res = requests.post(url, data=payload).json()
     container_id = res.get("id")
     if not container_id:
         print("❌ خطأ في إنشاء container:", res)
-        files['file'].close()
         return
 
     # نشر الفيديو
@@ -83,7 +84,6 @@ def upload_video_to_instagram(video_path, caption):
         "access_token": ACCESS_TOKEN
     }).json()
     print("✅ نشر الفيديو:", publish_res)
-    files['file'].close()
 
 # 🚀 الكود الرئيسي
 def main():
@@ -91,6 +91,7 @@ def main():
     now = datetime.datetime.now(tz)
 
     drive_service = get_drive_service()
+    used_titles = set()
 
     files = drive_service.files().list(
         q=f"'{FOLDER_ID}' in parents and mimeType contains 'video/'",
@@ -102,22 +103,16 @@ def main():
         return
 
     random.shuffle(files)
-    selected_files = files[:5]
+    selected_files = files[:5]  # رفع 5 فيديوهات عشوائياً
 
     for file in selected_files:
         original_title = file["name"]
-        caption = make_unique_title()
+        caption = make_unique_title(used_titles)
 
-        path = download_video_from_drive(file["id"], original_title, drive_service)
-        upload_video_to_instagram(path, caption)
+        video_url = get_public_video_url(file["id"], drive_service)
+        print(f"🌐 رفع الفيديو {original_title} عبر الرابط: {video_url}")
 
-        # حذف الفيديو بعد الرفع
-        os.remove(path)
-        print(f"🧹 حذف {original_title} بعد الرفع")
-
-    # حذف مجلد temp_videos إذا أصبح فارغًا
-    if os.path.exists("temp_videos") and not os.listdir("temp_videos"):
-        os.rmdir("temp_videos")
+        upload_video_to_instagram(video_url, caption)
 
     print("✅ تم رفع الفيديوهات على Instagram Reels بنجاح.")
 
