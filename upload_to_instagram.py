@@ -1,12 +1,12 @@
 import os
-import json
-import time
 import random
+import time
 import requests
 
 ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 IG_USER_ID = os.getenv("IG_USER_ID")
 
+# قائمة العناوين الجاهزة
 video_titles = [
     "تلاوة خاشعة تلامس القلوب",
     "صوت يريح القلب والعقل",
@@ -15,8 +15,8 @@ video_titles = [
 ]
 
 def upload_reel(video_url, caption):
+    """رفع فيديو على Instagram Reels"""
     create_url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
-
     payload = {
         "media_type": "REELS",
         "video_url": video_url,
@@ -33,34 +33,40 @@ def upload_reel(video_url, caption):
 
     creation_id = res["id"]
     publish_url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media_publish"
-
-    p = requests.post(publish_url, data={
+    publish_res = requests.post(publish_url, data={
         "creation_id": creation_id,
         "access_token": ACCESS_TOKEN
     }).json()
 
-    print("نتيجة النشر:", p)
+    print("✅ نشر الفيديو:", publish_res)
     return True
 
-
 def main():
-    with open("videos.json", "r", encoding="utf8") as f:
-        videos = json.load(f)
+    # التحقق من وجود videos.txt
+    if not os.path.exists("videos.txt"):
+        print("❌ لم يتم العثور على videos.txt")
+        return
 
-    print(f"رفع {len(videos)} فيديو...")
+    # قراءة الروابط من videos.txt
+    with open("videos.txt", "r", encoding="utf8") as f:
+        lines = f.readlines()
 
-    for v in videos:
-        title = random.choice(video_titles)
-        print("🔹 رفع:", v["name"])
+    # تنظيف الخطوط (إزالة الفراغات)
+    videos = [line.strip() for line in lines if line.strip()]
 
-        success = upload_reel(v["url"], title)
+    print(f"🔹 سيتم رفع {len(videos)} فيديو...")
 
-        if success:
-            print("✅ تم النشر")
-        else:
-            print("❌ فشل النشر")
+    for line in videos:
+        # السطر بالشكل: URL  # اسم الفيديو
+        parts = line.split("  # ")
+        video_url = parts[0]
+        video_name = parts[1] if len(parts) > 1 else "video"
 
-        time.sleep(10)  # استراحة بسيطة
+        caption = random.choice(video_titles)
+        print(f"رفع: {video_name} بعنوان: {caption}")
+
+        upload_reel(video_url, caption)
+        time.sleep(10)  # استراحة قصيرة بين الفيديوهات
 
 if __name__ == "__main__":
     main()
