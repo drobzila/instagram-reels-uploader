@@ -1,9 +1,9 @@
 name: Upload Instagram Reels
 
 on:
-  workflow_dispatch: # لتشغيله يدوياً
+  workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *' # مثال: كل يوم الساعة 6 صباحاً بتوقيت UTC
+    - cron: '0 6 * * *'
 
 jobs:
   upload_reels:
@@ -16,7 +16,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
+        python-version: "3.11"
 
     - name: Install dependencies
       run: |
@@ -29,10 +29,9 @@ jobs:
         echo "IG_USER_ID=${{ secrets.IG_USER_ID }}" >> .env
         echo "GOOGLE_APPLICATION_CREDENTIALS=service_account.json" >> .env
 
-    - name: Add Service Account JSON
+    - name: Decode Service Account JSON
       run: |
-        echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}' > service_account.json
+        echo "${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}" | base64 --decode > service_account.json
 
     - name: Run Instagram Reels Uploader
-      run: |
-        python main.py
+      run: python main.py
