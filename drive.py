@@ -4,7 +4,6 @@ import base64
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 
-# مجلد الفيديوهات
 FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
 
 def get_drive_service():
@@ -34,13 +33,13 @@ def main():
         print("لا توجد فيديوهات.")
         return
 
-    # كتابة الروابط في videos.txt
-    with open("videos.txt", "w", encoding="utf8") as f:
+    # كتابة الروابط في videos.txt مع وضع end-of-line المناسب
+    with open("videos.txt", "w", encoding="utf-8", newline="\n") as f:
         for file in files:
             link = f"https://drive.google.com/uc?id={file['id']}"
-            line = f"{link}  # {file['name']}\n"
-            f.write(line)
-            print(line.strip())
+            line = f"{link}  # {file['name']}"
+            f.write(line + "\n")   # أضف "\n" صريح لكل سطر
+            print(line)
 
     print("\n✅ تم حفظ الروابط في videos.txt")
 
