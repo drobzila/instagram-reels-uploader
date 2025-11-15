@@ -4,7 +4,6 @@ import random
 import datetime
 import requests
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
 from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 from dotenv import load_dotenv
 
@@ -27,37 +26,25 @@ FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
 def get_drive_service():
     credentials = ServiceAccountCredentials.from_service_account_file(
         os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
-        scopes=["https://www.googleapis.com/auth/drive"]
+        scopes=["https://www.googleapis.com/auth/drive.readonly"]
     )
     return build('drive', 'v3', credentials=credentials)
-
-# ⬇️ تحميل الفيديو من Google Drive
-def download_video_from_drive(file_id, file_name, drive_service):
-    request = drive_service.files().get_media(fileId=file_id)
-    fh = io.FileIO(file_name, 'wb')
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        _, done = downloader.next_chunk()
-    print(f"⬇️ تم تحميل {file_name}")
-    return file_name
 
 # 🧠 إنشاء عنوان فريد
 def make_unique_title():
     return random.choice(video_titles)
 
-# 🎥 رفع الفيديو إلى Instagram Reels
-def upload_video_to_instagram(video_path, caption):
-    # Meta Graph API: نبدأ بإنشاء Media Container
+# 🎥 رفع الفيديو إلى Instagram Reels باستخدام video_url
+def upload_video_to_instagram(video_url, caption):
+    # إنشاء Media Container
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
-    files = {'file': open(video_path, 'rb')}
     payload = {
-        "caption": caption,
         "media_type": "REELS",
+        "video_url": video_url,
+        "caption": caption,
         "access_token": ACCESS_TOKEN
     }
-    r = requests.post(url, files=files, data=payload)
-    res = r.json()
+    res = requests.post(url, data=payload).json()
     container_id = res.get("id")
     if not container_id:
         print("❌ خطأ في إنشاء container:", res)
@@ -70,7 +57,6 @@ def upload_video_to_instagram(video_path, caption):
         "access_token": ACCESS_TOKEN
     }).json()
     print("✅ نشر الفيديو:", publish_res)
-    files['file'].close()
 
 # 🚀 الكود الرئيسي
 def main():
@@ -89,17 +75,17 @@ def main():
         return
 
     random.shuffle(files)
-    selected_files = files[:5]
+    selected_files = files[:5]  # يمكن تعديل العدد
 
     for file in selected_files:
         original_title = file["name"]
         caption = make_unique_title()
+        file_id = file["id"]
 
-        path = download_video_from_drive(file["id"], original_title, drive_service)
-        upload_video_to_instagram(path, caption)
-
-        os.remove(path)
-        print(f"🧹 حذف {original_title} بعد الرفع")
+        # رابط مباشر للملف على Google Drive
+        video_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        print(f"⬇️ رفع الفيديو: {original_title}")
+        upload_video_to_instagram(video_url, caption)
 
     print("✅ تم رفع الفيديوهات على Instagram Reels بنجاح.")
 
