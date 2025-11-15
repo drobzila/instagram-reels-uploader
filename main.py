@@ -4,6 +4,7 @@ import json
 import base64
 import random
 import datetime
+import time
 import requests
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -21,7 +22,7 @@ video_titles = [
     "تلاوة خاشعة تلامس القلوب", 
     "صوت يريح القلب والعقل", 
     "آيات تبعث الطمأنينة في النفس",
-    # … أكمل باقي العناوين كما تريد
+    # … أضف المزيد حسب الحاجة
 ]
 
 # 🧭 مجلد الفيديوهات في Google Drive
@@ -40,37 +41,56 @@ def get_drive_service():
     )
     return build('drive', 'v3', credentials=credentials)
 
+# ⬇️ تحميل الفيديو من Google Drive
+def download_video_from_drive(file_id, file_name, drive_service):
+    request = drive_service.files().get_media(fileId=file_id)
+    fh = io.FileIO(file_name, 'wb')
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    print(f"⬇️ تم تحميل {file_name}")
+    return file_name
+
 # 🧠 إنشاء عنوان فريد
 def make_unique_title():
     return random.choice(video_titles)
 
-# 🔗 إنشاء رابط تنزيل مباشر من Google Drive
-def make_direct_drive_link(file_id):
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
-
-# 🎥 رفع الفيديو إلى Instagram Reels عبر video_url
-def upload_video_to_instagram(video_url, caption):
+# 🎥 رفع الفيديو إلى Instagram Reels
+def upload_video_to_instagram(video_path, caption):
+    print(f"⬇️ رفع {video_path} باستخدام الرابط المباشر...")
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
+    files = {'file': open(video_path, 'rb')}
     payload = {
-        "video_url": video_url,
         "caption": caption,
         "media_type": "REELS",
         "access_token": ACCESS_TOKEN
     }
-    r = requests.post(url, data=payload)
+    r = requests.post(url, files=files, data=payload)
     res = r.json()
     container_id = res.get("id")
     if not container_id:
         print("❌ خطأ في إنشاء container:", res)
+        files['file'].close()
         return
 
-    # نشر الفيديو
-    publish_url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media_publish"
-    publish_res = requests.post(publish_url, data={
-        "creation_id": container_id,
-        "access_token": ACCESS_TOKEN
-    }).json()
-    print("✅ نشر الفيديو:", publish_res)
+    # ⏳ انتظر حتى يصبح الفيديو جاهز للنشر
+    publish_res = {}
+    for attempt in range(12):  # تجربة 12 مرة
+        time.sleep(5)  # الانتظار 5 ثواني بين كل محاولة
+        publish_url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media_publish"
+        publish_res = requests.post(publish_url, data={
+            "creation_id": container_id,
+            "access_token": ACCESS_TOKEN
+        }).json()
+        if "id" in publish_res:
+            print("✅ تم نشر الفيديو بنجاح!")
+            break
+        else:
+            print("⏳ الفيديو لم يصبح جاهزًا للنشر بعد، إعادة المحاولة...")
+
+    files['file'].close()
+    print("نشر الفيديو النهائي:", publish_res)
 
 # 🚀 الكود الرئيسي
 def main():
@@ -89,15 +109,17 @@ def main():
         return
 
     random.shuffle(files)
-    selected_files = files[:5]  # رفع 5 فيديوهات عشوائيًا
+    selected_files = files[:5]
 
     for file in selected_files:
         original_title = file["name"]
         caption = make_unique_title()
-        video_url = make_direct_drive_link(file["id"])
 
-        print(f"⬇️ رفع {original_title} باستخدام الرابط المباشر: {video_url}")
-        upload_video_to_instagram(video_url, caption)
+        path = download_video_from_drive(file["id"], original_title, drive_service)
+        upload_video_to_instagram(path, caption)
+
+        os.remove(path)
+        print(f"🧹 حذف {original_title} بعد الرفع")
 
     print("✅ تم رفع الفيديوهات على Instagram Reels بنجاح.")
 
