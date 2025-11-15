@@ -13,7 +13,8 @@ def create_container(video_url, caption):
     """إنشاء Media Container على Instagram"""
     url = f"https://graph.facebook.com/v17.0/{IG_USER_ID}/media"
     payload = {
-        "video_url": video_url,
+        "media_type": "VIDEO",       # تحديد نوع الوسائط
+        "video_url": video_url,      # رابط الفيديو المباشر
         "caption": caption,
         "access_token": ACCESS_TOKEN
     }
