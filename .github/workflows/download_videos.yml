@@ -1,0 +1,40 @@
+name: Download Google Drive Videos
+
+on:
+  workflow_dispatch:  # يمكنك تشغيله يدويًا من GitHub
+
+jobs:
+  download-videos:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install gdown
+
+    - name: Download videos from Google Drive
+      run: |
+        mkdir -p videos
+        python - <<EOF
+import gdown
+import os
+
+DOWNLOAD_FOLDER = "videos"
+FOLDER_URL = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
+
+print("⏳ جاري تحميل الملفات...")
+gdown.download_folder(url=FOLDER_URL, output=DOWNLOAD_FOLDER, use_cookies=False)
+print(f"✅ تم تحميل جميع الملفات في المجلد: {DOWNLOAD_FOLDER}")
+EOF
+
+    - name: List downloaded files
+      run: ls -lh videos
