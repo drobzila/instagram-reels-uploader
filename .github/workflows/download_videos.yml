@@ -1,7 +1,7 @@
 name: Download and Release Videos
 
 on:
-  workflow_dispatch:  # تشغيل يدوي
+  workflow_dispatch:
 
 jobs:
   download-and-release:
@@ -24,20 +24,11 @@ jobs:
     - name: Download videos from Google Drive
       run: python download_videos.py
 
-    - name: Create GitHub Release
-      id: create_release
+    - name: Create release and upload videos
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: "v1.0"  # يمكنك تغييره حسب الحاجة
-        name: "Release v1.0"
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload videos to release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: "videos/*"
+        tag_name: "v1.0"        # استبدل بالـ Tag الذي تريد
+        name: "Release v1.0"    # اسم الـ Release
+        files: "videos/*"       # كل ملفات الفيديو في المجلد videos
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
