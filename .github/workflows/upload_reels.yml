@@ -1,24 +1,28 @@
 name: Upload Reels
 
+# هذا يضمن أن Workflow يمكن تشغيله يدويًا وكذلك مجدول يوميًا
 on:
-  workflow_dispatch:  # تشغيل يدوي
+  workflow_dispatch:       # زر Run workflow
   schedule:
-    - cron: '0 7 * * *' # يوميًا الساعة 07:00 بتوقيت الجزائر
+    - cron: '0 7 * * *'   # يوميًا الساعة 07:00 بتوقيت الجزائر
 
 jobs:
   upload:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
 
-    - run: pip install requests tqdm
+    - name: Install Python dependencies
+      run: pip install requests tqdm
 
-    - name: Upload Reels from Release
+    - name: Upload Reels from latest GitHub Release
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         IG_USER_ID: ${{ secrets.IG_USER_ID }}
@@ -39,18 +43,25 @@ videos = [a["browser_download_url"] for a in r.get("assets", []) if a["name"].en
 
 def upload(video_url):
     print("🎬 رفع:", video_url)
-    container = requests.post(f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media",
-                              data={"media_type":"REELS","video_url":video_url,"access_token":ACCESS_TOKEN}).json()
+    container = requests.post(
+        f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media",
+        data={"media_type":"REELS","video_url":video_url,"access_token":ACCESS_TOKEN}
+    ).json()
     cid = container.get("id")
     if not cid:
         print("❌ خطأ إنشاء container", container)
         return
     for _ in range(15):
-        status = requests.get(f"https://graph.facebook.com/v19.0/{cid}", params={"fields":"status_code","access_token":ACCESS_TOKEN}).json()
+        status = requests.get(
+            f"https://graph.facebook.com/v19.0/{cid}",
+            params={"fields":"status_code","access_token":ACCESS_TOKEN}
+        ).json()
         if status.get("status_code")=="READY": break
         time.sleep(10)
-    pub = requests.post(f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media_publish",
-                        data={"creation_id":cid,"access_token":ACCESS_TOKEN}).json()
+    pub = requests.post(
+        f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media_publish",
+        data={"creation_id":cid,"access_token":ACCESS_TOKEN}
+    ).json()
     print("✅ تم النشر:", pub)
 
 for v in videos:
