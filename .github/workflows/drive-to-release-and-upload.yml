@@ -69,10 +69,11 @@ jobs:
         run: |
           python - <<'EOF'
           import os, requests
+          from datetime import datetime
 
           token = os.environ['GITHUB_TOKEN']
           repo = os.environ['GITHUB_REPOSITORY']
-          tag = "reels-" + __import__('datetime').datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+          tag = "reels-" + datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
           headers = {"Authorization": f"token {token}"}
 
           # إنشاء Release
