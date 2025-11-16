@@ -1,27 +1,3 @@
-name: Upload Reels
-
-# هذا يضمن أن Workflow يمكن تشغيله يدويًا وكذلك مجدول يوميًا
-on:
-  workflow_dispatch:       # زر Run workflow
-  schedule:
-    - cron: '0 7 * * *'   # يوميًا الساعة 07:00 بتوقيت الجزائر
-
-jobs:
-  upload:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install Python dependencies
-      run: pip install requests tqdm
-
     - name: Upload Reels from latest GitHub Release
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
@@ -30,7 +6,9 @@ jobs:
         GITHUB_REPO: instagram-reels-uploader
       run: |
         python - <<'EOF'
-import os, requests, time
+import os
+import requests
+import time
 
 ACCESS_TOKEN = os.environ["ACCESS_TOKEN"]
 IG_USER_ID = os.environ["IG_USER_ID"]
@@ -56,7 +34,8 @@ def upload(video_url):
             f"https://graph.facebook.com/v19.0/{cid}",
             params={"fields":"status_code","access_token":ACCESS_TOKEN}
         ).json()
-        if status.get("status_code")=="READY": break
+        if status.get("status_code")=="READY":
+            break
         time.sleep(10)
     pub = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media_publish",
