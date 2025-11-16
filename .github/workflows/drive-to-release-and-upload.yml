@@ -3,7 +3,7 @@ name: Drive → GitHub Release → Instagram Reels
 on:
   workflow_dispatch:
   schedule:
-    # كل يوم عند 06:30 UTC (07:30 بتوقيت الجزائر)
+    # كل يوم عند 06:30 UTC (07:30 الجزائر)
     - cron: '30 5 * * *'
 
 jobs:
@@ -50,62 +50,74 @@ jobs:
             url="$(echo "$line" | sed 's/  #.*$//g' | xargs)"
             name="$(echo "$line" | awk -F'#' '{print $2}' | xargs)"
             if [ -z "$name" ]; then
-              # استخراج ID من رابط Google Drive
               id="$(echo "$url" | grep -o '[-\w]\{25,50\}')"
               name="video_${id}.mp4"
             fi
             out="release_assets/${name}"
             echo "Downloading [$url] -> $out"
-            wget -q --tries=3 --timeout=60 -O "$out" "$url" || {
-              echo "❌ Failed to download $url"
-            }
+            wget -q --tries=3 --timeout=60 -O "$out" "$url" || echo "❌ Failed to download $url"
             i=$((i+1))
           done < videos.txt
           echo "Downloaded $i files:"
           ls -lah release_assets || true
 
-      # 7️⃣ تثبيت GitHub CLI
-      - name: Install GitHub CLI
-        uses: github/gh-action@v2
-        with:
-          version: latest
-
-      # 8️⃣ إنشاء Release ورفع الملفات
-      - name: Create release and upload assets
+      # 7️⃣ إنشاء Release ورفع الملفات باستخدام Python
+      - name: Create Release & Upload assets via Python
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          set -e
-          TAG="reels-$(date -u +'%Y%m%dT%H%M%SZ')"
-          TITLE="Reels upload $TAG"
-          echo "Creating release $TAG ..."
-          gh release create "$TAG" -t "$TITLE" -n "Automated upload of Drive videos" || true
+          python - <<'EOF'
+          import os, requests
 
-          for f in release_assets/*; do
-            [ -f "$f" ] || continue
-            echo "Uploading $f ..."
-            gh release upload "$TAG" "$f" --clobber || echo "❌ Failed to upload $f"
-          done
+          token = os.environ['GITHUB_TOKEN']
+          repo = os.environ['GITHUB_REPOSITORY']
+          tag = "reels-" + __import__('datetime').datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+          headers = {"Authorization": f"token {token}"}
 
-          gh release view "$TAG" --json assets -q ".assets[].browser_download_url" > release_urls.txt
-          echo "Release URLs:"
-          cat release_urls.txt
+          # إنشاء Release
+          r = requests.post(
+              f"https://api.github.com/repos/{repo}/releases",
+              headers=headers,
+              json={"tag_name": tag, "name": tag, "body": "Automated release"}
+          )
+          release = r.json()
+          release_id = release.get("id")
+          if not release_id:
+              print("❌ Failed to create release:", release)
+              exit(1)
+          print("Created release:", tag)
 
-      # 9️⃣ تجهيز ملف videos.txt للـ Instagram
+          # رفع الملفات
+          for f in os.listdir("release_assets"):
+              path = os.path.join("release_assets", f)
+              if os.path.isfile(path):
+                  upload_url = release["upload_url"].split("{")[0]
+                  params = {"name": f, "label": f}
+                  with open(path, "rb") as file_data:
+                      r2 = requests.post(upload_url, headers=headers, params=params, data=file_data)
+                  if r2.status_code >= 400:
+                      print(f"❌ Failed to upload {f}: {r2.text}")
+                  else:
+                      print(f"Uploaded {f} successfully")
+EOF
+
+      # 8️⃣ تجهيز ملف videos.txt للـ Instagram
       - name: Prepare videos.txt for Instagram upload
         run: |
           rm -f videos_instagram.txt
           idx=0
-          while IFS= read -r url || [ -n "$url" ]; do
-            [ -z "$url" ] && continue
+          for f in release_assets/*; do
+            [ -f "$f" ] || continue
             idx=$((idx+1))
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/reels-$(date -u +'%Y%m%dT%H%M%SZ')/${f##*/}"
             echo "$url  # reel_${idx}.mp4" >> videos_instagram.txt
-          done < release_urls.txt
-          echo "---- videos_instagram.txt ----"
-          cat videos_instagram.txt
+          done
           mv videos_instagram.txt videos.txt
+          echo "---- videos.txt for Instagram ----"
+          cat videos.txt
 
-      # 10️⃣ رفع الفيديوهات إلى Instagram
+      # 9️⃣ رفع الفيديوهات إلى Instagram
       - name: Run upload_to_instagram.py
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
@@ -117,6 +129,6 @@ jobs:
           fi
           python upload_to_instagram.py
 
-      # 11️⃣ الحالة النهائية
+      # 🔟 الحالة النهائية
       - name: Final status
         run: echo "✅ Workflow finished successfully."
