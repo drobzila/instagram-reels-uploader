@@ -1,0 +1,136 @@
+name: Drive → GitHub Release → Instagram Reels
+
+on:
+  workflow_dispatch:
+  schedule:
+    # مثال: كل يوم عند 06:30 UTC (07:30 بتوقيت الجزائر) — عدّل كما تريد
+    - cron: '30 5 * * *'
+
+jobs:
+  transfer-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir google-api-python-client google-auth requests
+
+      - name: Run drive.py to generate videos.txt
+        env:
+          SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
+        run: |
+          python drive.py
+          echo "---- videos.txt ----"
+          cat videos.txt || true
+
+      - name: Prepare release_assets directory
+        run: |
+          mkdir -p release_assets
+
+      - name: Download files from videos.txt
+        run: |
+          set -e
+          i=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            # تجاهل الأسطر الفارغة
+            if [ -z "$line" ]; then
+              continue
+            fi
+            # استخراج الرابط واسم الملف (بعد "#")
+            url="$(echo "$line" | sed 's/  #.*$//g' | xargs)"
+            name="$(echo "$line" | awk -F'#' '{print $2}' | xargs)"
+            if [ -z "$name" ]; then
+              # إذا لم يوجد اسم مرجعي، أنشئ اسم من id
+              id="$(echo "$url" | sed -n 's/.*id=\([^&]*\).*/\1/p')"
+              name="video_${id}.mp4"
+            fi
+            out="release_assets/${name}"
+            echo "Downloading [$url] -> $out"
+            # محاولة تحميل الملف (wget). قد تحتاج --content-disposition
+            wget -q --tries=3 --timeout=30 -O "$out" "$url" || {
+              echo "❌ فشل تحميل $url — تحقق من الرابط المباشر"
+            }
+            i=$((i+1))
+          done < videos.txt
+          echo "Downloaded $i files:"
+          ls -lah release_assets || true
+
+      - name: Install GitHub CLI
+        uses: cli/gh-action@v2
+        with:
+          version: latest
+
+      - name: Create release and upload assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="reels-$(date -u +'%Y%m%dT%H%M%SZ')"
+          TITLE="Reels upload $TAG"
+          echo "Creating release $TAG ..."
+          gh release create "$TAG" -t "$TITLE" -n "Automated upload of Drive videos" || true
+
+          # Upload assets
+          for f in release_assets/*; do
+            if [ -f "$f" ]; then
+              echo "Uploading $f ..."
+              gh release upload "$TAG" "$f" --clobber
+            fi
+          done
+
+          echo "Listing release assets ..."
+          gh release view "$TAG" --json assets -q ".assets[].browser_download_url" > release_urls.txt
+          echo "Release URLs:"
+          cat release_urls.txt
+
+      - name: Show release URLs
+        run: |
+          echo "---- release_urls.txt ----"
+          cat release_urls.txt || true
+
+      - name: Install requests for upload script (if required)
+        run: pip install requests tqdm || true
+
+      - name: Run upload_to_instagram.py using release URLs
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        run: |
+          # تحضير ملف videos.txt من release_urls.txt بصيغة: URL  # filename
+          rm -f release_videos.txt
+          mkdir -p tmp_release
+          idx=0
+          while IFS= read -r url || [ -n "$url" ]; do
+            if [ -z "$url" ]; then
+              continue
+            fi
+            idx=$((idx+1))
+            # استخراج اسم الملف من رابط التنزيل
+            filename="release_video_${idx}.mp4"
+            echo "$url  # $filename" >> release_videos.txt
+          done < release_urls.txt
+
+          echo "---- release_videos.txt ----"
+          cat release_videos.txt
+
+          # انسخ upload script إلى مكان العمل إذا لم يكن في المستودع استخدم upload_to_instagram.py الموجود
+          if [ ! -f upload_to_instagram.py ]; then
+            echo "ERROR: upload_to_instagram.py not found in repository"
+            exit 1
+          fi
+
+          # استبدل videos.txt بالملف الجديد ثم شغّل السكربت
+          mv release_videos.txt videos.txt
+          python upload_to_instagram.py
+
+      - name: Final status
+        run: echo "Workflow finished."
