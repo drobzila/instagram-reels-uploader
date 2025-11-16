@@ -65,9 +65,9 @@ jobs:
           ls -lah release_assets || true
 
       - name: Install GitHub CLI
-        uses: cli/gh-action@v2
+        uses: github/gh-action@v2
         with:
-          version: latest
+         version: latest
 
       - name: Create release and upload assets
         env:
