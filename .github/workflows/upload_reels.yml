@@ -1,9 +1,9 @@
-name: Upload Reels from Drive
+name: Upload Reels from GitHub Release
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: '0 6 * * *'  # يوميًا الساعة 06:00 UTC
 
 jobs:
   upload:
@@ -12,19 +12,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install requests google-api-python-client google-auth tqdm
+        run: pip install requests
 
-      - name: Run uploader
+      - name: Run Instagram uploader
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
-          SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
         run: python upload_to_instagram.py
