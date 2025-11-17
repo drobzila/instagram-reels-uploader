@@ -1,11 +1,20 @@
-import gdown
 import os
+import gdown
 
+# مجلد حفظ الفيديوهات
 DOWNLOAD_FOLDER = "videos"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-FOLDER_URL = "https://drive.google.com/drive/folders/1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
+# ضع هنا Google Drive folder ID
+FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
 
 print("⏳ جاري تحميل الفيديوهات من Google Drive...")
-gdown.download_folder(url=FOLDER_URL, output=DOWNLOAD_FOLDER, use_cookies=False)
+
+gdown.download_folder(
+    id=FOLDER_ID,
+    output=DOWNLOAD_FOLDER,
+    quiet=False,
+    use_cookies=False
+)
+
 print(f"✅ تم تحميل جميع الفيديوهات في المجلد: {DOWNLOAD_FOLDER}")
