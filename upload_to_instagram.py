@@ -1,91 +1,79 @@
 import os
-import requests
-import time
+import gdown
+from instagrapi import Client
 
-# ⚡ المتغيرات الأساسية
-ACCESS_TOKEN = os.environ["ACCESS_TOKEN"]
-IG_USER_ID = os.environ["IG_USER_ID"]
-GITHUB_TOKEN = os.environ["MY_GITHUB_TOKEN"]
+# ---------------------------------------
+# 1. تسجيل الدخول إلى Instagram
+# ---------------------------------------
+USERNAME = os.getenv("IG_USERNAME")  # أو اكتب مباشرة: "your_username"
+PASSWORD = os.getenv("IG_PASSWORD")  # أو اكتب مباشرة: "your_password"
 
-OWNER = "drobliza"
-REPO = "instagram-reels-uploader"
-
-# جلب أحدث Release من GitHub
-print("📦 جلب أحدث Release من GitHub...")
-release_url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
-r = requests.get(release_url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
-if r.status_code != 200:
-    print(f"❌ خطأ GitHub API: {r.status_code} - {r.text}")
+if not USERNAME or not PASSWORD:
+    print("❌ خطأ: تأكد من وضع IG_USERNAME و IG_PASSWORD")
     exit(1)
 
-release_data = r.json()
+cl = Client()
+
+print("🔐 تسجيل الدخول إلى Instagram...")
+try:
+    cl.login(USERNAME, PASSWORD)
+    print("✅ تسجيل الدخول ناجح!")
+except Exception as e:
+    print("❌ خطأ أثناء تسجيل الدخول:", e)
+    exit(1)
+
+# ---------------------------------------
+# 2. تحميل الفيديوهات من Google Drive
+# ---------------------------------------
+FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"  # ضع Folder ID هنا
+
+DOWNLOAD_FOLDER = "videos"
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+print("⏳ جاري تحميل الفيديوهات من Google Drive...")
+
+try:
+    gdown.download_folder(
+        id=FOLDER_ID,
+        output=DOWNLOAD_FOLDER,
+        quiet=False,
+        use_cookies=False
+    )
+    print(f"✅ تم تحميل الفيديوهات إلى: {DOWNLOAD_FOLDER}")
+except Exception as e:
+    print("❌ فشل تحميل الفيديوهات من Drive:", e)
+    exit(1)
+
+# ---------------------------------------
+# 3. جلب الفيديوهات mp4
+# ---------------------------------------
 videos = [
-    asset["browser_download_url"]
-    for asset in release_data.get("assets", [])
-    if asset["name"].endswith(".mp4")
+    os.path.join(DOWNLOAD_FOLDER, f)
+    for f in os.listdir(DOWNLOAD_FOLDER)
+    if f.lower().endswith(".mp4")
 ]
 
 if not videos:
-    print("❌ لم يتم العثور على أي فيديوهات في أحدث Release.")
-    exit(1)
+    print("⚠️ لا يوجد أي فيديو MP4 في مجلد Drive")
+    exit(0)
 
-print("🎥 الفيديوهات الموجودة داخل Release:")
+print("🎥 الفيديوهات التي سيتم رفعها:")
 for v in videos:
     print(" -", v)
 
-def upload_reel(video_url):
-    print(f"\n🎬 رفع الفيديو: {video_url}")
+# ---------------------------------------
+# 4. رفع الفيديوهات إلى Reels
+# ---------------------------------------
+def upload_reel(video_path):
+    print(f"🚀 رفع: {video_path}")
+    try:
+        cl.clip_upload(
+            video_path,
+            caption="تم النشر تلقائيًا من Google Drive 🤖"
+        )
+        print("✅ تم النشر بنجاح!")
+    except Exception as e:
+        print("❌ خطأ أثناء النشر:", e)
 
-    # 1️⃣ إنشاء Container
-    container_res = requests.post(
-        f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media",
-        data={
-            "media_type": "REELS",
-            "video_url": video_url,
-            "caption": "Uploaded automatically 🤖",
-            "access_token": ACCESS_TOKEN
-        }
-    ).json()
-
-    if "id" not in container_res:
-        print(f"❌ فشل إنشاء Container: {container_res}")
-        return
-
-    container_id = container_res["id"]
-    print(f"📦 Container ID: {container_id}")
-
-    # 2️⃣ مراقبة جاهزية الوسائط تلقائيًا
-    while True:
-        status_res = requests.get(
-            f"https://graph.facebook.com/v19.0/{container_id}",
-            params={"access_token": ACCESS_TOKEN}
-        ).json()
-
-        state = status_res.get("status")
-        if state == "FINISHED":
-            print("✅ الوسائط جاهزة للنشر")
-            break
-        elif state is None:
-            print(f"❌ لم يتم التعرف على حالة الفيديو: {status_res}")
-            return
-        else:
-            print(f"⏳ الفيديو ليس جاهزًا بعد (حالة: {state})، إعادة المحاولة بعد 5 ثوانٍ...")
-            time.sleep(5)
-
-    # 3️⃣ نشر الفيديو
-    publish_res = requests.post(
-        f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media_publish",
-        data={
-            "creation_id": container_id,
-            "access_token": ACCESS_TOKEN
-        }
-    ).json()
-
-    if "id" in publish_res:
-        print(f"🚀 تم النشر بنجاح! Media ID: {publish_res['id']}")
-    else:
-        print(f"❌ خطأ عند النشر: {publish_res}")
-
-# رفع كل الفيديوهات واحدة واحدة
 for video in videos:
     upload_reel(video)
