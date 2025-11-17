@@ -1,32 +1,28 @@
-name: Upload Reels from Drive
+name: Upload Drive Videos to Instagram
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *'  # يوميًا الساعة 06:00 UTC
+    - cron: "0 */6 * * *"  # يعمل كل 6 ساعات
 
 jobs:
   upload:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Setup Python
+      - name: Install Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.10"
 
       - name: Install dependencies
-        run: |
-          pip install requests tqdm
+        run: pip install instagrapi gdown
 
-      - name: Run Instagram uploader
+      - name: Run uploader
         env:
-          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-          IG_USER_ID: ${{ secrets.IG_USER_ID }}
-          OWNER: drobliza
-          REPO: instagram-reels-uploader
-          MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
-        run: python upload_to_instagram.py
+          IG_USERNAME: ${{ secrets.IG_USERNAME }}
+          IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
+        run: python main.py
