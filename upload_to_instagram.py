@@ -1,77 +1,89 @@
-import os, requests, time
+import os
+import json
+import base64
+import requests
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from tqdm import tqdm
 
-ACCESS_TOKEN = os.environ["ACCESS_TOKEN"]
-IG_USER_ID = os.environ["IG_USER_ID"]
+ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
+IG_USER_ID = os.getenv("IG_USER_ID")
 
-# اسم الحساب واسم المستودع مباشرة (لا تضع / داخل REPO)
-OWNER = "drobliza"
-REPO = "instagram-reels-uploader"
+# Google Drive folder ID
+FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
 
-# جلب الفيديوهات من أحدث Release
-url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
-response = requests.get(url)
+# Decode Base64 service account JSON
+encoded = os.getenv("SERVICE_ACCOUNT_JSON_B64")
+service_account_info = json.loads(base64.b64decode(encoded))
 
-if response.status_code != 200:
-    print("❌ API Error:", response.text)
-    exit(1)
+creds = service_account.Credentials.from_service_account_info(
+    service_account_info,
+    scopes=["https://www.googleapis.com/auth/drive.readonly"]
+)
 
-data = response.json()
+drive_service = build("drive", "v3", credentials=creds)
 
-# استخراج الروابط
-videos = [
-    a["browser_download_url"]
-    for a in data.get("assets", [])
-    if a["name"].endswith(".mp4")
-]
 
-if not videos:
-    print("❌ لم يتم العثور على أي فيديوهات داخل Release!")
-    print("🔍 محتوى release:", data.get("assets", []))
-    exit(1)
+def get_drive_videos(folder_id):
+    query = f"'{folder_id}' in parents and mimeType contains 'video/'"
+    results = drive_service.files().list(
+        q=query,
+        fields="files(id, name)"
+    ).execute()
+    return results.get("files", [])
 
-print("🎥 الفيديوهات الموجودة داخل Release:")
-for v in videos:
-    print(" -", v)
 
-def upload(video_url):
-    print("\n🎬 رفع:", video_url)
+def download_file(file_id, filename):
+    url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+    headers = {"Authorization": f"Bearer {creds.token}"}
 
-    # 1) إنشاء Container
-    container = requests.post(
-        f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media",
-        data={
-            "media_type": "REELS",
-            "video_url": video_url,
-            "caption": "Uploaded automatically 🤖",
-            "access_token": ACCESS_TOKEN
-        }
-    ).json()
+    response = requests.get(url, headers=headers, stream=True)
+    response.raise_for_status()
 
-    print("📦 Container response:", container)
+    total = int(response.headers.get("content-length", 0))
 
-    if "id" not in container:
-        print("❌ فشل إنشاء Container. سيتم تجاوز هذا الفيديو.")
+    with open(filename, "wb") as f, tqdm(total=total, unit="B", unit_scale=True) as bar:
+        for chunk in response.iter_content(1024 * 1024):
+            f.write(chunk)
+            bar.update(len(chunk))
+
+    return filename
+
+
+def upload_instagram_video(video_path):
+    print("Uploading:", video_path)
+
+    create_url = f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media"
+
+    res = requests.post(create_url, data={
+        "media_type": "REELS",
+        "caption": "Uploaded automatically 🤖",
+        "access_token": ACCESS_TOKEN,
+        "upload_phase": "start"
+    })
+
+    print("Create session:", res.text)
+    return None  # هذا الجزء لاحقًا سنضبطه، حسب API النهائي
+
+
+def main():
+    files = get_drive_videos(FOLDER_ID)
+
+    if not files:
+        print("❌ No videos found in the folder.")
         return
 
-    container_id = container["id"]
+    for f in files:
+        filename = f["name"]
+        print(f"⬇️ Downloading {filename}...")
+        download_file(f["id"], filename)
 
-    # الانتظار ضروري حتى يكتمل المعالجة
-    print("⏳ الانتظار 25 ثانية قبل النشر...")
-    time.sleep(25)
+        # هنا رفع الفيديو
+        upload_instagram_video(filename)
 
-    # 2) نشر الفيديو
-    publish = requests.post(
-        f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media_publish",
-        data={
-            "creation_id": container_id,
-            "access_token": ACCESS_TOKEN
-        }
-    ).json()
-
-    print("🚀 Publish response:", publish)
+        os.remove(filename)
+        print(f"🗑️ Deleted: {filename}")
 
 
-# رفع جميع الفيديوهات
-for v in videos:
-    upload(v)
-    time.sleep(8)
+if __name__ == "__main__":
+    main()
