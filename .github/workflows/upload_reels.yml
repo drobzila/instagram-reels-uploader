@@ -36,8 +36,7 @@ jobs:
 
     - name: Upload to Instagram
       env:
-        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-        IG_USER_ID: ${{ secrets.IG_USER_ID }}
-        GITHUB_OWNER: ${{ github.repository_owner }}
-        GITHUB_REPO: ${{ github.repository }}
-      run: python upload_to_instagram.py
+         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+         IG_USER_ID: ${{ secrets.IG_USER_ID }}
+         OWNER: ${{ secrets.OWNER }}
+         REPO: ${{ secrets.REPO }}
