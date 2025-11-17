@@ -1,74 +1,110 @@
 import os
-import gdown
+import json
+import base64
+import requests
+from googleapiclient.discovery import build
+from google.oauth2.service_account import Credentials
 from instagrapi import Client
 
 # -----------------------------------
-# الإعدادات
+# إعدادات
 # -----------------------------------
-FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"  # من رابط المجلد
+FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
 DOWNLOAD_FOLDER = "videos"
-SESSION_FILE = "session.json"
 CAPTION = "نسمات القرآن 🌿🤍\n#القرآن #تلاوة #quran"
+SESSION_FILE = "session.json"
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # -----------------------------------
-# تسجيل الدخول باستخدام session.json
+# 1️⃣ جلب روابط الفيديوهات من Drive
 # -----------------------------------
-def instagram_login():
+def get_drive_service():
+    b64 = os.environ.get("SERVICE_ACCOUNT_JSON_B64")
+    if not b64:
+        raise Exception("❌ SERVICE_ACCOUNT_JSON_B64 غير موجود")
+    info = json.loads(base64.b64decode(b64))
+    creds = Credentials.from_service_account_info(
+        info,
+        scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    )
+    return build("drive", "v3", credentials=creds)
+
+def fetch_videos_links():
+    drive = get_drive_service()
+    results = drive.files().list(
+        q=f"'{FOLDER_ID}' in parents and mimeType contains 'video/'",
+        fields="files(id, name)",
+        pageSize=1000
+    ).execute()
+    files = results.get("files", [])
+    if not files:
+        print("⚠️ لا توجد فيديوهات.")
+        return []
+
+    links = []
+    with open("videos.txt", "w", encoding="utf-8", newline="\n") as f:
+        for file in files:
+            link = f"https://drive.google.com/uc?id={file['id']}"
+            f.write(link + "\n")
+            links.append(link)
+            print(f"🔗 {link}  # {file['name']}")
+    print(f"\n✅ تم حفظ {len(links)} روابط في videos.txt")
+    return links
+
+# -----------------------------------
+# 2️⃣ تحميل الفيديوهات من Drive
+# -----------------------------------
+def download_from_drive(url, output_path):
+    print(f"⬇️ تحميل: {output_path}")
+    r = requests.get(url, stream=True)
+    if r.status_code != 200:
+        raise Exception(f"خطأ أثناء التحميل من {url}")
+    with open(output_path, "wb") as f:
+        for chunk in r.iter_content(1024*1024):
+            f.write(chunk)
+    print("✔️ تم التحميل")
+    return output_path
+
+# -----------------------------------
+# 3️⃣ تسجيل الدخول باستخدام session.json
+# -----------------------------------
+def login_with_session():
     cl = Client()
     if not os.path.exists(SESSION_FILE):
-        print("❌ ملف session.json غير موجود!")
-        return None
-    print("🔐 تسجيل الدخول باستخدام session.json ...")
+        raise Exception("❌ ملف session.json غير موجود في جذر المشروع!")
     cl.load_settings(SESSION_FILE)
-    try:
-        cl.login()
-        print("✅ تسجيل الدخول ناجح")
-    except Exception as e:
-        print("❌ فشل تسجيل الدخول:", e)
-        return None
+    cl.login(cl.settings.get("authorization_data", {}).get("ds_user_id"),
+             cl.settings.get("authorization_data", {}).get("sessionid"))
+    print("✔️ تسجيل الدخول ناجح")
     return cl
 
 # -----------------------------------
-# تحميل كل الفيديوهات من المجلد
+# 4️⃣ رفع الفيديوهات
 # -----------------------------------
-def download_all_from_drive(folder_id):
-    print("⏳ جاري تحميل الفيديوهات من Google Drive folder:", folder_id)
-    gdown.download_folder(id=folder_id, output=DOWNLOAD_FOLDER, quiet=False, use_cookies=False)
-    files = [os.path.join(DOWNLOAD_FOLDER, f)
-             for f in os.listdir(DOWNLOAD_FOLDER)
-             if f.lower().endswith(".mp4")]
-    if not files:
-        print("⚠️ لا توجد فيديوهات mp4 في المجلد.")
-    else:
-        print("✅ تم تحميل الفيديوهات:")
-        for f in files:
-            print(" -", f)
-    return files
-
-# -----------------------------------
-# رفع الفيديوهات إلى Instagram Reels
-# -----------------------------------
-def upload_reels(cl, files):
-    for i, video in enumerate(files, start=1):
-        print(f"\n🎬 رفع الفيديو رقم {i}: {video}")
-        try:
-            cl.clip_upload(video, CAPTION)
-            print("🚀 تم رفع الريل بنجاح:", video)
-        except Exception as e:
-            print("❌ فشل رفع الفيديو:", video, "| الخطأ:", e)
+def upload_reel(cl, video_path):
+    print(f"📤 رفع: {video_path}")
+    cl.clip_upload(video_path, CAPTION)
+    print("✔️ تم رفع الريل")
 
 # -----------------------------------
 # MAIN
 # -----------------------------------
-if __name__ == "__main__":
-    cl = instagram_login()
-    if cl is None:
-        exit(1)
+def main():
+    cl = login_with_session()
+    links = fetch_videos_links()
+    if not links:
+        print("❌ لا يوجد روابط لرفعها.")
+        return
 
-    files = download_all_from_drive(FOLDER_ID)
-    if files:
-        upload_reels(cl, files)
-    else:
-        print("🔁 لا عمليات رفع لأن لا فيديوهات تم تحميلها.")
+    for i, url in enumerate(links, start=1):
+        video_file = os.path.join(DOWNLOAD_FOLDER, f"video_{i}.mp4")
+        download_from_drive(url, video_file)
+        upload_reel(cl, video_file)
+        os.remove(video_file)
+        print(f"🗑️ تم حذف: {video_file}")
+
+    print("\n🎉 انتهى كل شيء بنجاح!")
+
+if __name__ == "__main__":
+    main()
