@@ -2,10 +2,10 @@ import os
 import requests
 import time
 
+OWNER = os.environ["OWNER"]
+REPO = os.environ["REPO"]
 ACCESS_TOKEN = os.environ["ACCESS_TOKEN"]
 IG_USER_ID = os.environ["IG_USER_ID"]
-OWNER = os.environ["GITHUB_OWNER"]
-REPO = os.environ["GITHUB_REPO"]
 
 # جلب روابط الفيديوهات من أحدث Release
 r = requests.get(f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest").json()
