@@ -26,6 +26,4 @@ jobs:
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         IG_USER_ID: ${{ secrets.IG_USER_ID }}
-        OWNER: ${{ secrets.OWNER }}
-        REPO: ${{ secrets.REPO }}
       run: python upload_to_instagram.py
