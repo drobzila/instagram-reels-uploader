@@ -1,40 +1,50 @@
-import os, requests, time
+import os
+import requests
+import time
 
-# متغيرات الوصول
 ACCESS_TOKEN = os.environ["ACCESS_TOKEN"]
 IG_USER_ID = os.environ["IG_USER_ID"]
+GITHUB_TOKEN = os.environ["MY_GITHUB_TOKEN"]
 
-# معلومات الريبو والـ Release
+# معلومات الريبو مباشرة
 OWNER = "drobliza"
 REPO = "instagram-reels-uploader"
-RELEASE_TAG = "v1.0"  # الإصدار الذي تريد استخدامه
 
-# جلب الفيديوهات من Release محدد
-url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/tags/{RELEASE_TAG}"
-r = requests.get(url).json()
+# جلب أحدث Release من GitHub باستخدام Personal Access Token
+headers = {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json"
+}
 
-if "message" in r:
-    print("❌ خطأ GitHub API:", r["message"])
+url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
+resp = requests.get(url, headers=headers)
+
+if resp.status_code != 200:
+    print(f"❌ خطأ GitHub API: {resp.json()}")
     exit(1)
 
+release_data = resp.json()
+
+# استخراج الفيديوهات
 videos = [
     a["browser_download_url"]
-    for a in r.get("assets", [])
+    for a in release_data.get("assets", [])
     if a["name"].endswith(".mp4")
 ]
 
 if not videos:
-    print("❌ لم يتم العثور على أي فيديوهات في Release:", RELEASE_TAG)
+    print("❌ لم يتم العثور على أي فيديوهات في أحدث Release.")
     exit(1)
 
 print("🎥 الفيديوهات الموجودة داخل Release:")
 for v in videos:
     print(" -", v)
 
+
 def upload(video_url):
     print("🎬 رفع:", video_url)
 
-    # 1) إنشاء Container لرفع الريلز
+    # 1) إنشاء Container للـ Reels
     container = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media",
         data={
