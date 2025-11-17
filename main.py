@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import subprocess
 import requests
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
@@ -67,20 +68,40 @@ def download_from_drive(url, output_path):
     return output_path
 
 # -----------------------------------
-# 3️⃣ تسجيل الدخول باستخدام session.json
+# 3️⃣ إعادة ترميز الفيديو لضمان وجود مسار صوتي
+# -----------------------------------
+def reencode_video(input_path, output_path):
+    print(f"⚡ إعادة ترميز الفيديو: {output_path}")
+    cmd = [
+        "ffmpeg",
+        "-i", input_path,
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-y",  # overwrite if exists
+        output_path
+    ]
+    subprocess.run(cmd, check=True)
+    print("✔️ تم إعادة الترميز")
+    return output_path
+
+# -----------------------------------
+# 4️⃣ تسجيل الدخول باستخدام session.json
 # -----------------------------------
 def login_with_session():
     cl = Client()
     if not os.path.exists(SESSION_FILE):
         raise Exception("❌ ملف session.json غير موجود في جذر المشروع!")
     cl.load_settings(SESSION_FILE)
-    cl.login(cl.settings.get("authorization_data", {}).get("ds_user_id"),
-             cl.settings.get("authorization_data", {}).get("sessionid"))
+    cl.login(
+        cl.settings.get("authorization_data", {}).get("ds_user_id"),
+        cl.settings.get("authorization_data", {}).get("sessionid")
+    )
     print("✔️ تسجيل الدخول ناجح")
     return cl
 
 # -----------------------------------
-# 4️⃣ رفع الفيديوهات
+# 5️⃣ رفع الفيديوهات
 # -----------------------------------
 def upload_reel(cl, video_path):
     print(f"📤 رفع: {video_path}")
@@ -103,9 +124,17 @@ def main():
     for i, url in enumerate(links, start=1):
         video_file = os.path.join(DOWNLOAD_FOLDER, f"video_{i}.mp4")
         download_from_drive(url, video_file)
-        upload_reel(cl, video_file)
+
+        # إعادة الترميز قبل الرفع
+        video_file_reencoded = os.path.join(DOWNLOAD_FOLDER, f"reencoded_{i}.mp4")
+        reencode_video(video_file, video_file_reencoded)
+
+        upload_reel(cl, video_file_reencoded)
+
+        # حذف الملفات المؤقتة
         os.remove(video_file)
-        print(f"🗑️ تم حذف: {video_file}")
+        os.remove(video_file_reencoded)
+        print(f"🗑️ تم حذف الفيديوهات المؤقتة: {video_file} و {video_file_reencoded}")
 
     print("\n🎉 انتهى كل شيء بنجاح!")
 
