@@ -3,14 +3,14 @@ name: Upload Reels from Drive
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *' # يوميًا الساعة 06:00 UTC
+    - cron: '0 6 * * *'  # يوميًا الساعة 06:00 UTC
 
 jobs:
   upload:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Setup Python
@@ -18,25 +18,14 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Python packages
+    - name: Install dependencies
       run: |
-        pip install gdown requests tqdm
+        pip install requests tqdm
 
-    - name: Download videos from Google Drive
-      run: python download_videos.py
-
-    - name: Upload videos to GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v1.0
-        name: Release v1.0
-        files: videos/*
+    - name: Run Instagram uploader
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload to Instagram
-      env:
-         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-         IG_USER_ID: ${{ secrets.IG_USER_ID }}
-         OWNER: ${{ secrets.OWNER }}
-         REPO: ${{ secrets.REPO }}
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        OWNER: ${{ secrets.OWNER }}
+        REPO: ${{ secrets.REPO }}
+      run: python upload_to_instagram.py
