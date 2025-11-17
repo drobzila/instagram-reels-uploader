@@ -1,9 +1,9 @@
-name: Upload Reels from Drive Folder
+name: Upload Instagram Reels from Drive
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:      # تشغيل يدوي
   schedule:
-    - cron: "0 */4 * * *"  # كل 4 ساعات
+    - cron: "0 */6 * * *"  # كل 6 ساعات
 
 jobs:
   upload:
@@ -19,11 +19,11 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install instagrapi gdown requests pillow
-
-      - name: Save session.json
         run: |
-          printf "%s" '${{ secrets.IG_SESSION }}' > session.json
+          pip install --upgrade pip
+          pip install instagrapi google-api-python-client google-auth-httplib2 google-auth-oauthlib requests pillow
 
       - name: Run uploader
+        env:
+          SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
         run: python main.py
