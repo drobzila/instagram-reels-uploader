@@ -33,7 +33,6 @@ print("🎥 الفيديوهات الموجودة داخل Release:")
 for v in videos:
     print(" -", v)
 
-# رفع فيديو إلى Instagram Reels
 def upload_reel(video_url):
     print(f"\n🎬 رفع الفيديو: {video_url}")
 
@@ -55,8 +54,8 @@ def upload_reel(video_url):
     container_id = container_res["id"]
     print(f"📦 Container ID: {container_id}")
 
-    # 2️⃣ الانتظار حتى تصبح الوسائط جاهزة
-    for attempt in range(10):
+    # 2️⃣ مراقبة جاهزية الوسائط تلقائيًا
+    while True:
         status_res = requests.get(
             f"https://graph.facebook.com/v19.0/{container_id}",
             params={"access_token": ACCESS_TOKEN}
@@ -66,12 +65,12 @@ def upload_reel(video_url):
         if state == "FINISHED":
             print("✅ الوسائط جاهزة للنشر")
             break
+        elif state is None:
+            print(f"❌ لم يتم التعرف على حالة الفيديو: {status_res}")
+            return
         else:
-            print(f"⏳ الوسائط ليست جاهزة بعد (حالة: {state}), محاولة {attempt + 1}/10")
+            print(f"⏳ الفيديو ليس جاهزًا بعد (حالة: {state})، إعادة المحاولة بعد 5 ثوانٍ...")
             time.sleep(5)
-    else:
-        print("❌ الفيديو لم يصبح جاهزًا للنشر بعد الانتظار.")
-        return
 
     # 3️⃣ نشر الفيديو
     publish_res = requests.post(
@@ -87,6 +86,6 @@ def upload_reel(video_url):
     else:
         print(f"❌ خطأ عند النشر: {publish_res}")
 
-# رفع كل الفيديوهات
+# رفع كل الفيديوهات واحدة واحدة
 for video in videos:
     upload_reel(video)
