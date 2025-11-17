@@ -2,78 +2,95 @@ import os
 import gdown
 from instagrapi import Client
 
-# ---------------------------------------
-# 1. تسجيل الدخول إلى Instagram
-# ---------------------------------------
-USERNAME = os.getenv("IG_USERNAME")  # أو اكتب مباشرة: "your_username"
-PASSWORD = os.getenv("IG_PASSWORD")  # أو اكتب مباشرة: "your_password"
+# -------------------------------------------
+# الإعدادات من GitHub Secrets
+# -------------------------------------------
 
-if not USERNAME or not PASSWORD:
-    print("❌ خطأ: تأكد من وضع IG_USERNAME و IG_PASSWORD")
-    exit(1)
-
-cl = Client()
-
-print("🔐 تسجيل الدخول إلى Instagram...")
-try:
-    cl.login(USERNAME, PASSWORD)
-    print("✅ تسجيل الدخول ناجح!")
-except Exception as e:
-    print("❌ خطأ أثناء تسجيل الدخول:", e)
-    exit(1)
-
-# ---------------------------------------
-# 2. تحميل الفيديوهات من Google Drive
-# ---------------------------------------
-FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"  # ضع Folder ID هنا
-
+FOLDER_ID = os.getenv("FOLDER_ID")
 DOWNLOAD_FOLDER = "videos"
+SESSION_FILE = "session.json"
+CAPTION = "نسمات القرآن 🌿🤍\n#القرآن #تلاوة #quran"
+
+if not FOLDER_ID:
+    print("❌ خطأ: لم يتم تحديد FOLDER_ID من GitHub Secrets")
+    exit(1)
+
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-print("⏳ جاري تحميل الفيديوهات من Google Drive...")
+# -------------------------------------------
+# تسجيل الدخول عبر session.json
+# -------------------------------------------
 
-try:
+def instagram_login():
+    cl = Client()
+    if not os.path.exists(SESSION_FILE):
+        print("❌ ملف session.json غير موجود!")
+        return None
+
+    print("🔐 تسجيل الدخول باستخدام session.json ...")
+    cl.load_settings(SESSION_FILE)
+
+    try:
+        cl.login()  # استخدام الجلسة لتسجيل الدخول
+        print("✅ تسجيل الدخول ناجح")
+    except Exception as e:
+        print("❌ فشل تسجيل الدخول:", e)
+        return None
+
+    return cl
+
+# -------------------------------------------
+# تحميل الفيديوهات من Google Drive
+# -------------------------------------------
+
+def download_from_drive():
+    print("⏳ جاري تحميل الفيديوهات من Google Drive...")
+
     gdown.download_folder(
         id=FOLDER_ID,
         output=DOWNLOAD_FOLDER,
         quiet=False,
         use_cookies=False
     )
-    print(f"✅ تم تحميل الفيديوهات إلى: {DOWNLOAD_FOLDER}")
-except Exception as e:
-    print("❌ فشل تحميل الفيديوهات من Drive:", e)
-    exit(1)
 
-# ---------------------------------------
-# 3. جلب الفيديوهات mp4
-# ---------------------------------------
-videos = [
-    os.path.join(DOWNLOAD_FOLDER, f)
-    for f in os.listdir(DOWNLOAD_FOLDER)
-    if f.lower().endswith(".mp4")
-]
+    files = [
+        os.path.join(DOWNLOAD_FOLDER, f)
+        for f in os.listdir(DOWNLOAD_FOLDER)
+        if f.lower().endswith(".mp4")
+    ]
 
-if not videos:
-    print("⚠️ لا يوجد أي فيديو MP4 في مجلد Drive")
-    exit(0)
+    if not files:
+        print("❌ لا توجد فيديوهات في المجلد!")
+        return []
 
-print("🎥 الفيديوهات التي سيتم رفعها:")
-for v in videos:
-    print(" -", v)
+    print("✅ تم تحميل الفيديوهات:")
+    for f in files:
+        print(" -", f)
 
-# ---------------------------------------
-# 4. رفع الفيديوهات إلى Reels
-# ---------------------------------------
-def upload_reel(video_path):
-    print(f"🚀 رفع: {video_path}")
-    try:
-        cl.clip_upload(
-            video_path,
-            caption="تم النشر تلقائيًا من Google Drive 🤖"
-        )
-        print("✅ تم النشر بنجاح!")
-    except Exception as e:
-        print("❌ خطأ أثناء النشر:", e)
+    return files
 
-for video in videos:
-    upload_reel(video)
+# -------------------------------------------
+# رفع الفيديوهات إلى Instagram Reels
+# -------------------------------------------
+
+def upload_reels(cl, files):
+    for video in files:
+        print(f"\n🎬 رفع الفيديو: {video}")
+        try:
+            cl.clip_upload(video, CAPTION)
+            print("🚀 تم رفع الريل بنجاح")
+        except Exception as e:
+            print("❌ فشل رفع الفيديو:", e)
+
+# -------------------------------------------
+# MAIN
+# -------------------------------------------
+
+if __name__ == "__main__":
+    cl = instagram_login()
+    if cl is None:
+        exit()
+
+    files = download_from_drive()
+    if files:
+        upload_reels(cl, files)
