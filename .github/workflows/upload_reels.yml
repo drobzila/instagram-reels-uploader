@@ -1,9 +1,10 @@
-name: Upload Drive Videos to Instagram
+name: Upload Google Drive Videos to Instagram
 
 on:
+  push:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"  # يعمل كل 6 ساعات
+    - cron: "0 */6 * * *" # كل 6 ساعات، عدل حسب الحاجة
 
 jobs:
   upload:
@@ -13,16 +14,19 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: pip install instagrapi gdown
+        run: pip install instagrapi gdown requests
 
-      - name: Run uploader
+      - name: Save session.json
+        run: |
+          echo "${{ secrets.IG_SESSION }}" > session.json
+
+      - name: Run Instagram uploader
         env:
-          IG_USERNAME: ${{ secrets.IG_USERNAME }}
-          IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
+          FOLDER_ID: ${{ secrets.FOLDER_ID }}
         run: python main.py
