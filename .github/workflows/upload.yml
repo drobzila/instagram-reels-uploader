@@ -25,8 +25,7 @@ jobs:
         
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install instagrapi google-api-python-client google-auth-httplib2 google-auth-oauthlib requests pillow
+         python -m pip install --upgrade pip pip install instagrapi gdown google-api-python-client google-auth-httplib2 google-auth-oauthlib
 
       - name: Run uploader
         env:
