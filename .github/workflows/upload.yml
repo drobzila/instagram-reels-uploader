@@ -1,25 +1,29 @@
-name: Upload Reels from Drive
+name: Upload Reels from Drive Folder
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */4 * * *"   # كل 4 ساعات
+    - cron: "0 */4 * * *"  # كل 4 ساعات
 
 jobs:
   upload:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Install requirements
-        run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install instagrapi gdown requests pillow
+
+      - name: Save session.json
+        run: |
+          printf "%s" '${{ secrets.IG_SESSION }}' > session.json
 
       - name: Run uploader
         run: python main.py
