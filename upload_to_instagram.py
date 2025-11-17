@@ -2,21 +2,27 @@ import os
 import requests
 import time
 
+# ⚡ المتغيرات الأساسية
 ACCESS_TOKEN = os.environ["ACCESS_TOKEN"]
 IG_USER_ID = os.environ["IG_USER_ID"]
+GITHUB_TOKEN = os.environ["MY_GITHUB_TOKEN"]
 
-# ضع هنا اسم حسابك واسم المستودع مباشرة
 OWNER = "drobliza"
 REPO = "instagram-reels-uploader"
 
-# جلب الفيديوهات من أحدث Release
-url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
-r = requests.get(url, headers={"Authorization": f"token {os.environ.get('MY_GITHUB_TOKEN', '')}"}).json()
+# جلب أحدث Release من GitHub
+print("📦 جلب أحدث Release من GitHub...")
+release_url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
+r = requests.get(release_url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
+if r.status_code != 200:
+    print(f"❌ خطأ GitHub API: {r.status_code} - {r.text}")
+    exit(1)
 
+release_data = r.json()
 videos = [
-    a["browser_download_url"]
-    for a in r.get("assets", [])
-    if a["name"].endswith(".mp4")
+    asset["browser_download_url"]
+    for asset in release_data.get("assets", [])
+    if asset["name"].endswith(".mp4")
 ]
 
 if not videos:
@@ -27,12 +33,12 @@ print("🎥 الفيديوهات الموجودة داخل Release:")
 for v in videos:
     print(" -", v)
 
+# رفع فيديو إلى Instagram Reels
+def upload_reel(video_url):
+    print(f"\n🎬 رفع الفيديو: {video_url}")
 
-def upload(video_url):
-    print("\n🎬 رفع:", video_url)
-
-    # 1) إنشاء Container للريلز
-    container = requests.post(
+    # 1️⃣ إنشاء Container
+    container_res = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media",
         data={
             "media_type": "REELS",
@@ -42,34 +48,33 @@ def upload(video_url):
         }
     ).json()
 
-    print("📦 Container Response:", container)
-
-    if "id" not in container:
-        print("❌ فشل إنشاء Container:", container)
+    if "id" not in container_res:
+        print(f"❌ فشل إنشاء Container: {container_res}")
         return
 
-    container_id = container["id"]
+    container_id = container_res["id"]
+    print(f"📦 Container ID: {container_id}")
 
-    # 2) الانتظار حتى يصبح الفيديو جاهز للنشر
-    print("⏳ التحقق من جاهزية الفيديو للنشر…")
-    for _ in range(30):  # 30 محاولة × 5 ثواني = حتى 2.5 دقيقة
-        status = requests.get(
+    # 2️⃣ الانتظار حتى تصبح الوسائط جاهزة
+    for attempt in range(10):
+        status_res = requests.get(
             f"https://graph.facebook.com/v19.0/{container_id}",
-            params={"fields": "status_code", "access_token": ACCESS_TOKEN}
+            params={"access_token": ACCESS_TOKEN}
         ).json()
 
-        if status.get("status_code") == "FINISHED":
-            print("✅ الفيديو جاهز للنشر")
+        state = status_res.get("status")
+        if state == "FINISHED":
+            print("✅ الوسائط جاهزة للنشر")
             break
         else:
-            print("⏳ الفيديو لم يجهز بعد، ننتظر 5 ثواني…")
+            print(f"⏳ الوسائط ليست جاهزة بعد (حالة: {state}), محاولة {attempt + 1}/10")
             time.sleep(5)
     else:
-        print("❌ الفيديو لم يجهز بعد بعد 2.5 دقيقة")
+        print("❌ الفيديو لم يصبح جاهزًا للنشر بعد الانتظار.")
         return
 
-    # 3) نشر الريلز
-    publish = requests.post(
+    # 3️⃣ نشر الفيديو
+    publish_res = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_USER_ID}/media_publish",
         data={
             "creation_id": container_id,
@@ -77,10 +82,11 @@ def upload(video_url):
         }
     ).json()
 
-    print("🚀 Publish Response:", publish)
+    if "id" in publish_res:
+        print(f"🚀 تم النشر بنجاح! Media ID: {publish_res['id']}")
+    else:
+        print(f"❌ خطأ عند النشر: {publish_res}")
 
-
-# رفع كل فيديو
-for v in videos:
-    upload(v)
-    time.sleep(10)  # انتظار قصير قبل الفيديو التالي
+# رفع كل الفيديوهات
+for video in videos:
+    upload_reel(video)
