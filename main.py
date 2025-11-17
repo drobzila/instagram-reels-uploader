@@ -80,12 +80,15 @@ def login_with_session():
     return cl
 
 # -----------------------------------
-# 4️⃣ رفع الفيديوهات
+# 4️⃣ رفع الفيديوهات مع force_audio=True
 # -----------------------------------
 def upload_reel(cl, video_path):
     print(f"📤 رفع: {video_path}")
-    cl.clip_upload(video_path, CAPTION)
-    print("✔️ تم رفع الريل")
+    try:
+        cl.clip_upload(video_path, CAPTION, force_audio=True)
+        print("✔️ تم رفع الريل")
+    except Exception as e:
+        print(f"❌ فشل رفع الريل: {e}")
 
 # -----------------------------------
 # MAIN
