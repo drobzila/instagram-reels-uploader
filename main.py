@@ -1,142 +1,54 @@
 import os
-import json
-import base64
-import subprocess
-import requests
-from googleapiclient.discovery import build
-from google.oauth2.service_account import Credentials
+import time
 from instagrapi import Client
+from download_drive_videos import download_drive_videos  # السكربت الذي يجلب روابط الفيديوهات
 
-# -----------------------------------
-# إعدادات
-# -----------------------------------
-FOLDER_ID = "1lLKbFPovufWeEkwpCgI3cM-Je-Uee9el"
-DOWNLOAD_FOLDER = "videos"
-CAPTION = "نسمات القرآن 🌿🤍\n#القرآن #تلاوة #quran"
 SESSION_FILE = "session.json"
+VIDEOS_FOLDER = "videos"
+CAPTION = "Uploaded automatically 🤖"
+DELAY_BETWEEN_UPLOADS = 600  # 10 دقائق، يمكن تعديلها بالثواني
 
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
-
-# -----------------------------------
-# 1️⃣ جلب روابط الفيديوهات من Drive
-# -----------------------------------
-def get_drive_service():
-    b64 = os.environ.get("SERVICE_ACCOUNT_JSON_B64")
-    if not b64:
-        raise Exception("❌ SERVICE_ACCOUNT_JSON_B64 غير موجود")
-    info = json.loads(base64.b64decode(b64))
-    creds = Credentials.from_service_account_info(
-        info,
-        scopes=["https://www.googleapis.com/auth/drive.readonly"]
-    )
-    return build("drive", "v3", credentials=creds)
-
-def fetch_videos_links():
-    drive = get_drive_service()
-    results = drive.files().list(
-        q=f"'{FOLDER_ID}' in parents and mimeType contains 'video/'",
-        fields="files(id, name)",
-        pageSize=1000
-    ).execute()
-    files = results.get("files", [])
-    if not files:
-        print("⚠️ لا توجد فيديوهات.")
-        return []
-
-    links = []
-    with open("videos.txt", "w", encoding="utf-8", newline="\n") as f:
-        for file in files:
-            link = f"https://drive.google.com/uc?id={file['id']}"
-            f.write(link + "\n")
-            links.append(link)
-            print(f"🔗 {link}  # {file['name']}")
-    print(f"\n✅ تم حفظ {len(links)} روابط في videos.txt")
-    return links
-
-# -----------------------------------
-# 2️⃣ تحميل الفيديوهات من Drive
-# -----------------------------------
-def download_from_drive(url, output_path):
-    print(f"⬇️ تحميل: {output_path}")
-    r = requests.get(url, stream=True)
-    if r.status_code != 200:
-        raise Exception(f"خطأ أثناء التحميل من {url}")
-    with open(output_path, "wb") as f:
-        for chunk in r.iter_content(1024*1024):
-            f.write(chunk)
-    print("✔️ تم التحميل")
-    return output_path
-
-# -----------------------------------
-# 3️⃣ إعادة ترميز الفيديو لضمان وجود مسار صوتي
-# -----------------------------------
-def reencode_video(input_path, output_path):
-    print(f"⚡ إعادة ترميز الفيديو: {output_path}")
-    cmd = [
-        "ffmpeg",
-        "-i", input_path,
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-y",  # overwrite if exists
-        output_path
-    ]
-    subprocess.run(cmd, check=True)
-    print("✔️ تم إعادة الترميز")
-    return output_path
-
-# -----------------------------------
-# 4️⃣ تسجيل الدخول باستخدام session.json
-# -----------------------------------
-def login_with_session():
-    cl = Client()
-    if not os.path.exists(SESSION_FILE):
-        raise Exception("❌ ملف session.json غير موجود في جذر المشروع!")
-    cl.load_settings(SESSION_FILE)
-    cl.login(
-        cl.settings.get("authorization_data", {}).get("ds_user_id"),
-        cl.settings.get("authorization_data", {}).get("sessionid")
-    )
-    print("✔️ تسجيل الدخول ناجح")
-    return cl
-
-# -----------------------------------
-# 5️⃣ رفع الفيديوهات
-# -----------------------------------
-def upload_reel(cl, video_path):
-    print(f"📤 رفع: {video_path}")
-    try:
-        cl.clip_upload(video_path, CAPTION)  # بدون force_audio
-        print("✔️ تم رفع الريل")
-    except Exception as e:
-        print(f"❌ فشل رفع الريل: {e}")
-
-# -----------------------------------
-# MAIN
-# -----------------------------------
 def main():
-    cl = login_with_session()
-    links = fetch_videos_links()
-    if not links:
-        print("❌ لا يوجد روابط لرفعها.")
-        return
+    # 1️⃣ تسجيل الدخول باستخدام session
+    cl = Client()
+    cl.load_settings(SESSION_FILE)
+    print("✔️ تسجيل الدخول ناجح")
 
-    for i, url in enumerate(links, start=1):
-        video_file = os.path.join(DOWNLOAD_FOLDER, f"video_{i}.mp4")
-        download_from_drive(url, video_file)
+    # 2️⃣ تحميل روابط الفيديوهات من Google Drive
+    video_links = download_drive_videos()  # دالة من السكربت السابق، تُرجع قائمة روابط الفيديوهات
+    print(f"✅ تم الحصول على {len(video_links)} روابط")
 
-        # إعادة الترميز قبل الرفع
-        video_file_reencoded = os.path.join(DOWNLOAD_FOLDER, f"reencoded_{i}.mp4")
-        reencode_video(video_file, video_file_reencoded)
+    # 3️⃣ رفع الفيديوهات واحدة واحدة مع فاصل زمني
+    for idx, link in enumerate(video_links, start=1):
+        video_path = os.path.join(VIDEOS_FOLDER, f"video_{idx}.mp4")
 
-        upload_reel(cl, video_file_reencoded)
+        # تحميل الفيديو
+        print(f"⬇️ تحميل: {link}")
+        # يمكنك استخدام gdown أو requests هنا حسب سكربتك
+        os.system(f"gdown {link} -O {video_path}")
 
-        # حذف الملفات المؤقتة
-        os.remove(video_file)
-        os.remove(video_file_reencoded)
-        print(f"🗑️ تم حذف الفيديوهات المؤقتة: {video_file} و {video_file_reencoded}")
+        if not os.path.exists(video_path):
+            print(f"❌ فشل تحميل الفيديو: {link}")
+            continue
 
-    print("\n🎉 انتهى كل شيء بنجاح!")
+        # رفع الريل
+        try:
+            print(f"📤 رفع: {video_path}")
+            cl.clip_upload(video_path, CAPTION)
+            print(f"🚀 تم رفع الفيديو بنجاح: {video_path}")
+        except Exception as e:
+            print(f"❌ فشل رفع الريل: {e}")
+
+        # حذف الفيديو المؤقت
+        if os.path.exists(video_path):
+            os.remove(video_path)
+
+        # انتظار قبل رفع الفيديو التالي
+        if idx < len(video_links):
+            print(f"⏳ الانتظار {DELAY_BETWEEN_UPLOADS} ثانية قبل رفع الفيديو التالي...")
+            time.sleep(DELAY_BETWEEN_UPLOADS)
+
+    print("🎉 انتهى كل شيء بنجاح!")
 
 if __name__ == "__main__":
     main()
