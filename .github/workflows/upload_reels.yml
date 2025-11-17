@@ -1,4 +1,4 @@
-name: Upload Reels from GitHub Release
+name: Upload Reels from Drive
 
 on:
   workflow_dispatch:
@@ -19,10 +19,14 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          pip install requests tqdm
 
       - name: Run Instagram uploader
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          OWNER: drobliza
+          REPO: instagram-reels-uploader
+          MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
         run: python upload_to_instagram.py
