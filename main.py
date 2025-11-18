@@ -1,62 +1,81 @@
 import os
-import sys
-import subprocess
+import gdown
 from instagrapi import Client
-from download_drive_videos import download_drive_videos  # السكربت الذي يجلب روابط الفيديوهات
 
-# =====================
-# إعداد المجلدات
-# =====================
-os.makedirs("videos", exist_ok=True)
-os.makedirs("reencoded", exist_ok=True)
+# -----------------------------
+# 1. Load IG session
+# -----------------------------
+def load_session():
+    cl = Client()
+    if os.path.exists("session.json"):
+        cl.load_settings("session.json")
+        cl.login_by_sessionid(cl.get_settings()["authorization_data"]["sessionid"])
+    else:
+        raise Exception("session.json غير موجود!")
+    return cl
 
-# =====================
-# التأكد من تثبيت gdown
-# =====================
-try:
-    import gdown
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "gdown"])
-    import gdown
 
-# =====================
-# إعدادات Instagram
-# =====================
-SESSION_FILE = "session.json"  # موجود في جذر المشروع
-CAPTION = "تم الرفع تلقائيًا بواسطة GitHub Actions"
+# -----------------------------
+# 2. Extract video ID from Google Drive link
+# -----------------------------
+def extract_drive_id(url: str) -> str:
+    if "id=" in url:
+        return url.split("id=")[1]
+    if "/d/" in url:
+        return url.split("/d/")[1].split("/")[0]
+    raise ValueError("رابط Google Drive غير صحيح")
 
-cl = Client()
-try:
-    cl.load_settings(SESSION_FILE)
-    print("✔️ تسجيل الدخول ناجح")
-except Exception as e:
-    print(f"❌ فشل تسجيل الدخول: {e}")
-    sys.exit(1)
 
-# =====================
-# تحميل الفيديوهات من Google Drive
-# =====================
-video_links = download_drive_videos()  # دالة ترجع قائمة روابط الفيديو
-print(f"✅ تم الحصول على {len(video_links)} روابط")
+# -----------------------------
+# 3. Download video using gdown
+# -----------------------------
+def download_video(url: str, output_folder="downloads"):
+    os.makedirs(output_folder, exist_ok=True)
+    file_id = extract_drive_id(url)
+    output_path = os.path.join(output_folder, file_id + ".mp4")
+    gdown.download(f"https://drive.google.com/uc?id={file_id}", output_path, quiet=False)
+    return output_path
 
-for idx, link in enumerate(video_links, 1):
-    output_file = f"videos/video_{idx}.mp4"
-    try:
-        print(f"⬇️ تحميل: {link}")
-        gdown.download(link, output_file, quiet=False)
-        print(f"✔️ تم التحميل: {output_file}")
-    except Exception as e:
-        print(f"❌ فشل تحميل الفيديو: {link} | {e}")
-        continue
 
-    # رفع الفيديو إلى Instagram
-    try:
-        print(f"📤 رفع: {output_file}")
-        cl.clip_upload(output_file, CAPTION)
-        print(f"✅ تم رفع الفيديو: {output_file}")
-    except Exception as e:
-        print(f"❌ فشل رفع الريل: {e}")
-    finally:
-        # حذف الفيديو بعد الرفع أو الفشل لتوفير مساحة
-        if os.path.exists(output_file):
-            os.remove(output_file)
+# -----------------------------
+# 4. Read links.txt
+# -----------------------------
+def load_links():
+    with open("links.txt", "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+# -----------------------------
+# 5. Upload video to Instagram Reels
+# -----------------------------
+def upload_reel(cl, video_path):
+    cl.clip_upload(
+        video_path,
+        caption="تم النشر تلقائيًا ✓"
+    )
+    print(f"نُشر على إنستغرام → {video_path}")
+
+
+# -----------------------------
+# 6. Main logic
+# -----------------------------
+def main():
+    print("تحميل session…")
+    cl = load_session()
+
+    print("قراءة links.txt…")
+    links = load_links()
+
+    print("بدء تحميل الفيديوهات…")
+    for link in links:
+        print(f"تحميل: {link}")
+        video_file = download_video(link)
+
+        print("رفع إلى إنستغرام…")
+        upload_reel(cl, video_file)
+
+    print("اكتمل السكربت ✓")
+
+
+if __name__ == "__main__":
+    main()
