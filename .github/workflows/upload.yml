@@ -1,40 +1,37 @@
-name: Upload Instagram Reels
+name: Drive → Release → Instagram
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'  # تشغيل يوميًا عند منتصف الليل، يمكن تعديله
+
+permissions:
+  contents: write
 
 jobs:
-  upload_reels:
+  run:
     runs-on: ubuntu-latest
-
-    env:
-      SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.11
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install instagrapi gdown google-api-python-client google-auth-httplib2 google-auth-oauthlib
+          pip install -r requirements.txt
 
-      - name: Create session.json from Base64
+      - name: Decode IG Session (Base64 → session.json)
         run: |
-          echo "${{ secrets.IG_SESSION_B64 }}" | base64 --decode > session.json
+          echo "$IG_SESSION_B64" | base64 -d > session.json
 
-      - name: Ensure videos directory exists
-        run: mkdir -p videos
+        env:
+          IG_SESSION_B64: ${{ secrets.IG_SESSION_B64 }}
 
-      - name: Download video links from Drive
-        run: python download_drive_videos.py
+      - name: Run script
+        run: |
+          python main.py
 
-      - name: Run main script to upload Reels
-        run: python main.py
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: uploads/*
+          tag_name: "auto-upload"
