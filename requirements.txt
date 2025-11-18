@@ -6,3 +6,8 @@ python-dotenv>=1.0.0
 instagrapi==1.18.5
 requests
 pillow
+instagrapi
+gdown
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
