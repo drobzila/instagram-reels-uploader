@@ -1,9 +1,9 @@
 name: Upload Daily Videos to Mega
 
 on:
-  workflow_dispatch:   # لتشغيله يدويًا
+  workflow_dispatch:
   schedule:
-    - cron: '0 12 * * *'  # يوميًا الساعة 12:00 UTC
+    - cron: '0 12 * * *'
 
 jobs:
   upload:
@@ -13,19 +13,28 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      - name: Install Mega CMD
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y megacmd
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
-          pip install mega.py google-api-python-client google-auth
+          pip install google-api-python-client google-auth
 
-      - name: Run upload script
-        run: python upload_to_mega.py
+      - name: Save Mega session
+        run: |
+          echo "${{ secrets.MEGA_SESSION }}" > mega_session.txt
+          mega-login --session $(cat mega_session.txt)
+
+      - name: Download from Drive & upload to Mega
+        run: |
+          python upload_to_mega_with_cmd.py
         env:
-          MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
-          MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
           SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
           FOLDER_ID: ${{ secrets.FOLDER_ID }}
