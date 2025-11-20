@@ -32,13 +32,15 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y snapd
-        sudo snap install mega-cmd
+        sudo snap install mega-cmd --classic
 
     - name: Login to MEGA using Session Key
       run: |
+        export PATH=$PATH:/snap/bin
         echo "$MEGA_SESSION" > mega_session.txt
         mega-login --session "$(cat mega_session.txt)"
 
     - name: Upload videos from Google Drive to MEGA
       run: |
+        export PATH=$PATH:/snap/bin
         python scripts/upload_drive_to_mega.py
