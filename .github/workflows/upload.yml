@@ -13,10 +13,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install MEGA CMD
+      - name: Install MEGAcmd
         run: |
-          wget https://mega.nz/linux/MEGAsync/xUbuntu_22.04/amd64/megacmd-xUbuntu_22.04_amd64.deb
-          sudo dpkg -i megacmd-xUbuntu_22.04_amd64.deb || sudo apt-get -f install -y
+         sudo apt-get update
+         sudo apt-get install -y lsb-release gnupg
+         codename=$(lsb_release -sc)
+         sudo install -m 0755 -d /etc/apt/keyrings
+         wget -O - https://mega.nz/linux/repo/xUbuntu_${codename}/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/megacmd.gpg > /dev/null
+         echo "deb [signed-by=/etc/apt/keyrings/megacmd.gpg] https://mega.nz/linux/repo/xUbuntu_${codename}/ ./" | sudo tee /etc/apt/sources.list.d/megacmd.list
+         sudo apt-get update
+         sudo apt-get install -y megacmd
 
       - name: Set up Python
         uses: actions/setup-python@v4
