@@ -1,45 +1,48 @@
-name: Upload Daily Videos to Mega
+name: Upload Videos to MEGA
 
 on:
-  workflow_dispatch:   # تشغيل يدوي
   schedule:
-    - cron: '0 12 * * *'  # يوميًا الساعة 12:00 UTC
+    - cron: '0 6 * * *' # كل يوم الساعة 6 صباحًا UTC
+  workflow_dispatch:
 
 jobs:
-  upload:
-    runs-on: ubuntu-latest
+  upload_to_mega:
+    runs-on: ubuntu-22.04
+
+    env:
+      SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
+      FOLDER_ID: ${{ secrets.FOLDER_ID }}
+      MEGA_SESSION: ${{ secrets.MEGA_SESSION }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Install MEGAcmd
-        run: |
-         sudo apt-get update
-         sudo apt-get install -y lsb-release gnupg
-         codename=$(lsb_release -sc)
-         sudo install -m 0755 -d /etc/apt/keyrings
-         wget -O - https://mega.nz/linux/repo/xUbuntu_${codename}/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/megacmd.gpg > /dev/null
-         echo "deb [signed-by=/etc/apt/keyrings/megacmd.gpg] https://mega.nz/linux/repo/xUbuntu_${codename}/ ./" | sudo tee /etc/apt/sources.list.d/megacmd.list
-         sudo apt-get update
-         sudo apt-get install -y megacmd
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib mega.py
 
-      - name: Install Python dependencies
-        run: |
-          pip install google-api-python-client google-auth
+    - name: Install MEGAcmd
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lsb-release gnupg wget
+        sudo install -m 0755 -d /etc/apt/keyrings
+        wget -O - https://mega.nz/linux/repo/xUbuntu_jammy/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/megacmd.gpg > /dev/null
+        echo "deb [signed-by=/etc/apt/keyrings/megacmd.gpg] https://mega.nz/linux/repo/xUbuntu_jammy/ ./" | sudo tee /etc/apt/sources.list.d/megacmd.list
+        sudo apt-get update
+        sudo apt-get install -y megacmd
 
-      - name: Save Mega session
-        run: |
-          echo "${{ secrets.MEGA_SESSION }}" > mega_session.txt
-          mega-login --session $(cat mega_session.txt)
+    - name: Save MEGA session
+      run: |
+        echo "$MEGA_SESSION" > mega_session.txt
+        mega-login --session "$(cat mega_session.txt)"
 
-      - name: Run upload script
-        run: python upload_to_mega_with_cmd.py
-        env:
-          SERVICE_ACCOUNT_JSON_B64: ${{ secrets.SERVICE_ACCOUNT_JSON_B64 }}
-          FOLDER_ID: ${{ secrets.FOLDER_ID }}
+    - name: Upload videos from Drive to MEGA
+      run: |
+        python scripts/upload_drive_to_mega.py
