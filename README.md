@@ -1,20 +1,48 @@
 # Instagram Reels Uploader
 
-سكريبت Python يحمّل فيديوهات من Google Drive وينشرها كـ Instagram Reels عبر Instagram Graph API.
+أداة Python لأتمتة تنزيل الفيديوهات من Google Drive وتجهيزها ونشرها كـ Instagram Reels عبر Instagram Graph API.
 
-## متطلبات سابقة
-1. Instagram Professional (Business أو Creator) مرتبط بصفحة Facebook.  
-2. تطبيق على Meta for Developers مع الأذونات:
-   - `instagram_basic`
-   - `instagram_content_publish`
-   - `pages_show_list`
-3. Access Token طويل المدى (Long-Lived Access Token).
-4. Instagram Business Account ID (`IG_USER_ID`).
-5. Service account JSON للوصول إلى Google Drive (أو طريقة وصول بديلة).
+## المميزات
+- تنزيل الفيديوهات من Google Drive.
+- رفع الفيديوهات إلى Instagram Reels.
+- دعم Instagram Graph API وMeta access tokens.
+- سكربتات مساعدة لتنزيل الفيديوهات وإدارة الملفات.
 
-**مراجع رسمية:**  
-- توثيق نشر المحتوى (Reels) — Meta / Instagram Graph API. :contentReference[oaicite:0]{index=0}
+## المتطلبات
+- حساب Instagram Professional مرتبط بصفحة Facebook.
+- تطبيق Meta for Developers.
+- صلاحيات Instagram Graph API المناسبة للنشر.
+- Instagram User ID.
+- وصول إلى Google Drive.
+- Python والمتطلبات الموجودة في `requirements.txt`.
 
-## إعداد المتغيرات
-ضع القيم الحساسة في متغيرات بيئة (أو ملف `.env`):
+## التثبيت
+```bash
+git clone https://github.com/drobzila/instagram-reels-uploader.git
+cd instagram-reels-uploader
+pip install -r requirements.txt
+```
 
+## الإعداد
+ضع بيانات API وAccess Tokens في متغيرات البيئة أو إعدادات محلية غير مرفوعة إلى Git.
+
+**لا ترفع `session.json` أو Access Tokens أو Service Account credentials إلى مستودع عام.**
+
+## التشغيل
+```bash
+python main.py
+```
+
+## البنية
+- `main.py` — نقطة التشغيل الرئيسية.
+- `download_drive_videos.py` — تنزيل الفيديوهات من Drive.
+- `download_videos.py` — وظائف تنزيل إضافية.
+- `upload_drive_to_mega.py` — نقل ملفات Drive إلى MEGA.
+- `config.json` — إعدادات المشروع.
+- `requirements.txt` — المتطلبات.
+
+## ملاحظات
+قد تحتاج عملية نشر Reels إلى إعدادات وصلاحيات Meta صحيحة، بالإضافة إلى أن يكون الفيديو متاحًا للمعالجة وفق متطلبات Instagram.
+
+## الترخيص
+لم يتم تحديد ترخيص للمشروع بعد.
